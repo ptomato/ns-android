@@ -70,6 +70,7 @@ if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
 
         src/main/cpp/com_tns_AndroidJsV8Inspector.cpp
         src/main/cpp/DOMDomainCallbackHandlers.cpp
+        src/main/cpp/InspectorConsole.cpp
         src/main/cpp/JsV8InspectorClient.cpp
         src/main/cpp/NetworkDomainCallbackHandlers.cpp
     )

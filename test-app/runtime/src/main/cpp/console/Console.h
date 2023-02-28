@@ -11,11 +11,9 @@
 #include <ArgConverter.h>
 #include <android/log.h>
 
-#include <src/inspector/v8-console-message.h>
+#include "InspectorConsole.h"
 
 namespace tns {
-
-typedef void (*ConsoleCallback)(v8::Isolate* isolate, v8_inspector::ConsoleAPIType method, const std::vector<v8::Local<v8::Value>>& args);
 
 class Console {
     public:
@@ -34,8 +32,6 @@ class Console {
         static void onDisposeIsolate(v8::Isolate* isolate);
 
     private:
-        using ConsoleAPIType = v8_inspector::ConsoleAPIType;
-
         static int m_maxLogcatObjectSize;
         static ConsoleCallback m_callback;
         static const char* LOG_TAG;
@@ -59,8 +55,8 @@ class Console {
         }
 
         static void sendToADBLogcat(const std::string& log, android_LogPriority logPriority);
-        static void sendToDevToolsFrontEnd(v8::Isolate* isolate, ConsoleAPIType method, const v8::FunctionCallbackInfo<v8::Value>& args);
-        static void sendToDevToolsFrontEnd(v8::Isolate* isolate, ConsoleAPIType method, const std::string& args);
+        static void sendToDevToolsFrontEnd(v8::Isolate* isolate, const std::string& method, const v8::FunctionCallbackInfo<v8::Value>& args);
+        static void sendToDevToolsFrontEnd(v8::Isolate* isolate, const std::string& method, const std::string& message);
 };
 
 }

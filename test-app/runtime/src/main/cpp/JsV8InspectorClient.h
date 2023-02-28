@@ -7,6 +7,7 @@
 #include "v8.h"
 #include "JEnv.h"
 #include "v8-inspector.h"
+#include <src/inspector/protocol/Runtime.h>
 
 using namespace v8_inspector;
 
@@ -27,7 +28,7 @@ class JsV8InspectorClient : V8InspectorClient, v8_inspector::V8Inspector::Channe
         void flushProtocolNotifications() override;
 
         static void sendToFrontEndCallback(const v8::FunctionCallbackInfo<v8::Value>& args);
-        static void consoleLogCallback(v8::Isolate* isolate, ConsoleAPIType method, const std::vector<v8::Local<v8::Value>>& args);
+        static void consoleLogCallback(v8::Isolate* isolate, const std::string& method, const std::vector<v8::Local<v8::Value>>& args);
         static void inspectorSendEventCallback(const v8::FunctionCallbackInfo<v8::Value>& args);
 
         // Overrides of V8InspectorClient
@@ -47,6 +48,7 @@ class JsV8InspectorClient : V8InspectorClient, v8_inspector::V8Inspector::Channe
 
         void createInspectorSession();
         void doDispatchMessage(const std::string& message);
+        std::unique_ptr<protocol::Array<protocol::Runtime::RemoteObject>> wrapArguments(const std::vector<std::unique_ptr<v8::Global<v8::Value>>>& global_args, bool generatePreview) const;
 
         static void InspectorIsConnectedGetterCallback(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& info);
 

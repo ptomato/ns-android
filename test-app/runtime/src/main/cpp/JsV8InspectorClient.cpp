@@ -1,18 +1,18 @@
 #include "JsV8InspectorClient.h"
 #include <assert.h>
 
+#include <sstream>
+
 #include <cppgc/default-platform.h>
-#include <src/inspector/v8-console-message.h>
-#include <src/inspector/v8-inspector-impl.h>
-#include <src/inspector/v8-inspector-session-impl.h>
-#include <src/inspector/v8-runtime-agent-impl.h>
-#include <src/inspector/v8-stack-trace-impl.h>
+#include <include/libplatform/libplatform.h>
+#include <src/inspector/protocol/Runtime.h>
 
 #include "Runtime.h"
 #include "NativeScriptException.h"
 
 #include "ArgConverter.h"
 #include "DOMDomainCallbackHandlers.h"
+#include "InspectorConsole.h"
 #include "NetworkDomainCallbackHandlers.h"
 
 using namespace std;
@@ -259,26 +259,114 @@ void JsV8InspectorClient::sendToFrontEndCallback(const v8::FunctionCallbackInfo<
     }
 }
 
-void JsV8InspectorClient::consoleLogCallback(Isolate* isolate, ConsoleAPIType method, const std::vector<v8::Local<v8::Value>>& args) {
+std::unique_ptr<protocol::Array<protocol::Runtime::RemoteObject>>
+JsV8InspectorClient::wrapArguments(
+    const std::vector<std::unique_ptr<v8::Global<v8::Value>>>& global_args,
+    bool generatePreview) const {
+    if (!global_args.size()) {
+        return nullptr;
+    }
+
+    v8::Local<v8::Context> context = context_.Get(isolate_);
+    v8::HandleScope handles(isolate_);
+
+    auto protocol_args = std::make_unique<protocol::Array<protocol::Runtime::RemoteObject>>();
+
+    for (size_t i = 0; i < global_args.size(); ++i) {
+        std::unique_ptr<protocol::Runtime::API::RemoteObject> wrapped =
+            session_->wrapObject(context, global_args[i]->Get(isolate_), stringToStringView("console"), generatePreview);
+        if (!wrapped) {
+            return nullptr;
+        }
+        protocol_args->emplace_back(dynamic_cast<protocol::Runtime::RemoteObject*>(wrapped.release()));
+    }
+    return protocol_args;
+}
+
+void JsV8InspectorClient::consoleLogCallback(Isolate* isolate, const std::string& method, const std::vector<v8::Local<v8::Value>>& args) {
     if (!inspectorIsConnected()) {
         return;
     }
 
-    // Note, here we access private V8 API
-    auto* impl = reinterpret_cast<v8_inspector::V8InspectorImpl*>(instance->inspector_.get());
-    auto* session = reinterpret_cast<v8_inspector::V8InspectorSessionImpl*>(instance->session_.get());
-
-    std::unique_ptr<V8StackTraceImpl> stack = impl->debugger()->captureStackTrace(false);
+    std::unique_ptr<v8_inspector::V8StackTrace> stack = instance->inspector_->captureStackTrace(/* fullStack = */ true);
 
     v8::Local<v8::Context> context = instance->context_.Get(instance->isolate_);
     const int contextId = V8ContextInfo::executionContextId(context);
 
-    std::unique_ptr<v8_inspector::V8ConsoleMessage> msg =
-        v8_inspector::V8ConsoleMessage::createForConsoleAPI(
-            context, contextId, contextGroupId, impl, instance->currentTimeMS(),
-            method, args, String16{}, std::move(stack));
+    auto timestamp = instance->currentTimeMS();
+    auto message = String16();
 
-    session->runtimeAgent()->messageAdded(msg.get());
+    auto url = toString16(stack->topSourceURL());
+    auto lineNumber = stack->topLineNumber();
+    auto columnNumber = stack->topColumnNumber();
+
+    const char kGlobalConsoleMessageHandleLabel[] = "DevTools console";
+
+    std::vector<std::unique_ptr<v8::Global<v8::Value>>> global_args;
+    for (size_t i = 0; i < args.size(); ++i) {
+        std::unique_ptr<v8::Global<v8::Value>> argument(
+            new v8::Global<v8::Value>(isolate, args.at(i)));
+        argument->AnnotateStrongRetainer(kGlobalConsoleMessageHandleLabel);
+        global_args.push_back(std::move(argument));
+    }
+
+    for (size_t i = 0, num_args = global_args.size(); i < num_args; ++i) {
+        if (i) message += String16(" ");
+        message += V8ValueStringBuilder::toString(global_args[i], context);
+    }
+
+    v8::Isolate::MessageErrorLevel clientLevel = v8::Isolate::kMessageInfo;
+    if (method == "debug" || method == "count" || method == "timeEnd") {
+        clientLevel = v8::Isolate::kMessageDebug;
+    } else if (method == "error" || method == "assert") {
+        clientLevel = v8::Isolate::kMessageError;
+    } else if (method == "warning") {
+        clientLevel = v8::Isolate::kMessageWarning;
+    } else if (method == "info") {
+        clientLevel = v8::Isolate::kMessageInfo;
+    } else if (method == "log") {
+        clientLevel = v8::Isolate::kMessageLog;
+    }
+
+    if (method != "clear") {
+        instance->consoleAPIMessage(
+            contextGroupId, clientLevel, toStringView(message),
+            toStringView(url), lineNumber,
+            columnNumber, stack.get());
+    }
+
+    bool generatePreview = true;
+
+    std::unique_ptr<protocol::Array<protocol::Runtime::RemoteObject>>
+        protocol_args = instance->wrapArguments(global_args, generatePreview);
+    if (!protocol_args) {
+      protocol_args =
+          std::make_unique<protocol::Array<protocol::Runtime::RemoteObject>>();
+      if (!message.isEmpty()) {
+        std::unique_ptr<protocol::Runtime::RemoteObject> messageArg =
+            protocol::Runtime::RemoteObject::create()
+                .setType(protocol::Runtime::RemoteObject::TypeEnum::String)
+                .build();
+        messageArg->setValue(protocol::StringValue::create(message));
+        protocol_args->emplace_back(std::move(messageArg));
+      }
+    }
+
+    std::unique_ptr<protocol::Runtime::StackTrace> stackTrace;
+    if (stack) {
+        bool needsStack = (method == ConsoleMethod::ASSERT ||
+            method == ConsoleMethod::ERROR ||
+            method == ConsoleMethod::TRACE ||
+            method == ConsoleMethod::WARNING);
+        stackTrace.reset(dynamic_cast<protocol::Runtime::StackTrace*>(
+            stack->buildInspectorObject(needsStack ? 1 : 0).release()));
+    }
+
+    protocol::Runtime::Frontend frontend{instance->session_.get()};
+    frontend.consoleAPICalled(
+        String16{method.c_str()}, std::move(protocol_args), contextId, timestamp,
+        std::move(stackTrace), {});
+    frontend.flush();
 }
 
 void JsV8InspectorClient::attachInspectorCallbacks(Isolate* isolate,

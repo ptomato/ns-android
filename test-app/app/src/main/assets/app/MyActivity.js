@@ -54,8 +54,17 @@ var MyActivity = (function (_super) {
         button.setOnClickListener(
         	new android.view.View.OnClickListener('AppClickListener', {
         		onClick: function () {
+                    console.time('click reaction timer');
         			button.setBackgroundColor(colors[taps % colors.length]);
         			taps++;
+                    console.assert(taps === 0);
+                    console.error(new Error('have a fake error'));
+                    console.info('have some information');
+                    console.log('that was click number', taps);
+                    console.warn('this console really works');
+                    console.dir(button);
+                    console.trace('have a stack trace');
+                    console.timeEnd('click reaction timer');
         		},
         	})
         );

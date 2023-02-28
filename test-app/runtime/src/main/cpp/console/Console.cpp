@@ -16,6 +16,7 @@
 
 #include "ArgConverter.h"
 #include "Console.h"
+#include "InspectorConsole.h"
 
 namespace tns {
 
@@ -70,7 +71,7 @@ void Console::sendToADBLogcat(const std::string& message, android_LogPriority lo
     }
 }
 
-void Console::sendToDevToolsFrontEnd(v8::Isolate* isolate, ConsoleAPIType method, const v8::FunctionCallbackInfo<v8::Value>& args) {
+void Console::sendToDevToolsFrontEnd(v8::Isolate* isolate, const std::string& method, const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (!m_callback) {
         return;
     }
@@ -84,7 +85,7 @@ void Console::sendToDevToolsFrontEnd(v8::Isolate* isolate, ConsoleAPIType method
     m_callback(isolate, method, arg_vector);
 }
 
-void Console::sendToDevToolsFrontEnd(v8::Isolate* isolate, ConsoleAPIType method, const std::string& message) {
+void Console::sendToDevToolsFrontEnd(v8::Isolate* isolate, const std::string& method, const std::string& message) {
     if (!m_callback) {
         return;
     }
@@ -191,7 +192,7 @@ void Console::assertCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
             std::string log = assertionError.str();
             sendToADBLogcat(log, ANDROID_LOG_ERROR);
-            sendToDevToolsFrontEnd(isolate, ConsoleAPIType::kAssert, info);
+            sendToDevToolsFrontEnd(isolate, ConsoleMethod::ASSERT, info);
         }
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -212,7 +213,7 @@ void Console::errorCallback(const v8::FunctionCallbackInfo <v8::Value>& info) {
         log += buildLogString(info);
 
         sendToADBLogcat(log, ANDROID_LOG_ERROR);
-        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleAPIType::kError, info);
+        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleMethod::ERROR, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -232,7 +233,7 @@ void Console::infoCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
         log += buildLogString(info);
 
         sendToADBLogcat(log, ANDROID_LOG_INFO);
-        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleAPIType::kInfo, info);
+        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleMethod::INFO, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -252,7 +253,7 @@ void Console::logCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
         log += buildLogString(info);
 
         sendToADBLogcat(log, ANDROID_LOG_INFO);
-        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleAPIType::kLog, info);
+        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleMethod::LOG, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -272,7 +273,7 @@ void Console::warnCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
         log += buildLogString(info);
 
         sendToADBLogcat(log, ANDROID_LOG_WARN);
-        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleAPIType::kWarning, info);
+        sendToDevToolsFrontEnd(info.GetIsolate(), ConsoleMethod::WARNING, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -346,7 +347,7 @@ void Console::dirCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
         std::string log = ss.str();
 
         sendToADBLogcat(log, ANDROID_LOG_INFO);
-        sendToDevToolsFrontEnd(isolate, ConsoleAPIType::kDir, info);
+        sendToDevToolsFrontEnd(isolate, ConsoleMethod::DIR, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -427,7 +428,7 @@ void Console::traceCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
         std::string log = ss.str();
         __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, log.c_str());
-        sendToDevToolsFrontEnd(isolate, ConsoleAPIType::kTrace, info);
+        sendToDevToolsFrontEnd(isolate, ConsoleMethod::TRACE, info);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -501,7 +502,7 @@ void Console::timeEndCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
             std::string warning = std::string("No such label '" + label + "' for console.timeEnd()");
 
             __android_log_write(ANDROID_LOG_WARN, LOG_TAG, warning.c_str());
-            sendToDevToolsFrontEnd(isolate, ConsoleAPIType::kWarning, warning);
+            sendToDevToolsFrontEnd(isolate, ConsoleMethod::WARNING, warning);
 
             return;
         }
@@ -520,7 +521,7 @@ void Console::timeEndCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
         std::string log = ss.str();
 
         __android_log_write(ANDROID_LOG_INFO, LOG_TAG, log.c_str());
-        sendToDevToolsFrontEnd(isolate, ConsoleAPIType::kTimeEnd, log);
+        sendToDevToolsFrontEnd(isolate, ConsoleMethod::TIME_END, log);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
