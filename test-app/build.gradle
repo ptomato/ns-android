@@ -148,6 +148,11 @@ version of the {N} CLI install a previous version of the runtime package - 'tns 
     }
 }
 
+ext {
+    ndkDirectory = '/var/home/ptomato/Android/Sdk/ndk/21.1.6352462'
+    onlyX86 = 1
+}
+
 allprojects {
     repositories {
         google()
