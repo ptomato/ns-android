@@ -35,9 +35,8 @@ CastType NumericCasts::GetCastType(Isolate* isolate, const Local<Object>& object
     return ret;
 }
 
-Local<Value> NumericCasts::GetCastValue(const Local<Object>& object) {
-    auto isolate = object->GetIsolate();
-    Local<Context> context = object->GetCreationContextChecked();
+Local<Value> NumericCasts::GetCastValue(Local<Context> context, const Local<Object>& object) {
+    Isolate* isolate = context->GetIsolate();
     Local<Value> value;
     object->Get(context, V8StringConstants::GetValue(isolate)).ToLocal(&value);
     return value;

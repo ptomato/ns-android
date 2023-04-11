@@ -154,7 +154,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
 
         switch (castType) {
             case CastType::Char:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 charValue = '\0';
                 if (castValue->IsString()) {
                     string str = ArgConverter::ConvertToString(
@@ -167,7 +167,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 break;
 
             case CastType::Byte:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 byteValue = 0;
                 if (castValue->IsString()) {
                     string value = ArgConverter::ConvertToString(
@@ -185,7 +185,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 break;
 
             case CastType::Short:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 shortValue = 0;
                 if (castValue->IsString()) {
                     string value = ArgConverter::ConvertToString(
@@ -203,7 +203,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 break;
 
             case CastType::Long:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 longValue = 0;
                 if (castValue->IsString()) {
                     auto strValue = ArgConverter::ConvertToString(
@@ -219,7 +219,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 break;
 
             case CastType::Float:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 floatValue = 0;
                 if (castValue->IsNumber()) {
                     double floatArg = castValue->ToNumber(context).ToLocalChecked()->NumberValue(
@@ -232,7 +232,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 break;
 
             case CastType::Double:
-                castValue = NumericCasts::GetCastValue(jsObj);
+                castValue = NumericCasts::GetCastValue(context, jsObj);
                 doubleValue = 0;
                 if (castValue->IsNumber()) {
                     double doubleArg = castValue->ToNumber(context).ToLocalChecked()->NumberValue(

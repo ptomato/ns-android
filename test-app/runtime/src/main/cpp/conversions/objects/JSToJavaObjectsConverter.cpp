@@ -39,7 +39,7 @@ bool tns::ConvertJavaScriptObject(
 
     switch (castType) {
         case CastType::Char:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsString()) {
                 std::string value = ArgConverter::ConvertToString(
                         castValue->ToString(context).ToLocalChecked());
@@ -49,7 +49,7 @@ bool tns::ConvertJavaScriptObject(
             break;
 
         case CastType::Byte:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsString()) {
                 std::string strValue = ArgConverter::ConvertToString(
                         castValue->ToString(context).ToLocalChecked());
@@ -64,7 +64,7 @@ bool tns::ConvertJavaScriptObject(
             break;
 
         case CastType::Short:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsString()) {
                 std::string strValue = ArgConverter::ConvertToString(
                         castValue->ToString(context).ToLocalChecked());
@@ -79,7 +79,7 @@ bool tns::ConvertJavaScriptObject(
             break;
 
         case CastType::Long:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsString()) {
                 std::string strValue = ArgConverter::ConvertToString(
                         castValue->ToString(context).ToLocalChecked());
@@ -94,7 +94,7 @@ bool tns::ConvertJavaScriptObject(
             break;
 
         case CastType::Float:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsNumber()) {
                 double floatArg = castValue->ToNumber(context).ToLocalChecked()->NumberValue(
                         context).ToChecked();
@@ -104,7 +104,7 @@ bool tns::ConvertJavaScriptObject(
             break;
 
         case CastType::Double:
-            castValue = NumericCasts::GetCastValue(jsObject);
+            castValue = NumericCasts::GetCastValue(context, jsObject);
             if (castValue->IsNumber()) {
                 double doubleArg = castValue->ToNumber(context).ToLocalChecked()->NumberValue(
                         context).ToChecked();

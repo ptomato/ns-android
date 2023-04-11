@@ -21,7 +21,7 @@ class NumericCasts {
 
         static CastType GetCastType(v8::Isolate* isolate, const v8::Local<v8::Object>& object);
 
-        static v8::Local<v8::Value> GetCastValue(const v8::Local<v8::Object>& object);
+        static v8::Local<v8::Value> GetCastValue(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object);
 
         static void MarkAsLong(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object, const v8::Local<v8::Value>& value);
 
