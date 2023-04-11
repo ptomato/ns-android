@@ -23,7 +23,7 @@ class NumericCasts {
 
         static v8::Local<v8::Value> GetCastValue(const v8::Local<v8::Object>& object);
 
-        static void MarkAsLong(v8::Isolate* isolate, const v8::Local<v8::Object>& object, const v8::Local<v8::Value>& value);
+        static void MarkAsLong(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object, const v8::Local<v8::Value>& value);
 
     private:
         void MarkAsLongCallback(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -38,7 +38,7 @@ class NumericCasts {
 
         void MarkAsDoubleCallback(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-        static void MarkJsObject(v8::Isolate* isolate, const v8::Local<v8::Object>& object, CastType castType, const v8::Local<v8::Value>& value);
+        static void MarkJsObject(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object, CastType castType, const v8::Local<v8::Value>& value);
 
         static void MarkAsLongCallbackStatic(const v8::FunctionCallbackInfo<v8::Value>& args);
 

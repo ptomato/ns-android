@@ -43,8 +43,8 @@ Local<Value> NumericCasts::GetCastValue(const Local<Object>& object) {
     return value;
 }
 
-void NumericCasts::MarkAsLong(Isolate* isolate, const v8::Local<v8::Object>& object, const v8::Local<v8::Value>& value) {
-    MarkJsObject(isolate, object, CastType::Long, value);
+void NumericCasts::MarkAsLong(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object, const v8::Local<v8::Value>& value) {
+    MarkJsObject(context, object, CastType::Long, value);
 }
 
 NumericCasts* NumericCasts::GetThis(const v8::FunctionCallbackInfo<Value>& args) {
@@ -183,7 +183,7 @@ void NumericCasts::MarkAsLongCallback(const v8::FunctionCallbackInfo<Value>& arg
         }
 
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Long, value);
+        MarkJsObject(context, cast, CastType::Long, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -218,7 +218,7 @@ void NumericCasts::MarkAsByteCallback(const v8::FunctionCallbackInfo<Value>& arg
         }
 
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Byte, value);
+        MarkJsObject(context, cast, CastType::Byte, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -254,7 +254,7 @@ void NumericCasts::MarkAsShortCallback(const v8::FunctionCallbackInfo<Value>& ar
         }
 
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Short, value);
+        MarkJsObject(context, cast, CastType::Short, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -287,7 +287,7 @@ void NumericCasts::MarkAsCharCallback(const v8::FunctionCallbackInfo<Value>& arg
         }
 
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Char, value);
+        MarkJsObject(context, cast, CastType::Char, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -316,7 +316,7 @@ void NumericCasts::MarkAsFloatCallback(const v8::FunctionCallbackInfo<Value>& ar
         auto context = isolate->GetCurrentContext();
         auto value = args[0]->ToNumber(context).ToLocalChecked();
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Float, value);
+        MarkJsObject(context, cast, CastType::Float, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -345,7 +345,7 @@ void NumericCasts::MarkAsDoubleCallback(const v8::FunctionCallbackInfo<Value>& a
         auto context = isolate->GetCurrentContext();
         auto value = args[0]->ToNumber(context).ToLocalChecked();
         auto cast = Object::New(isolate);
-        MarkJsObject(isolate, cast, CastType::Double, value);
+        MarkJsObject(context, cast, CastType::Double, value);
         args.GetReturnValue().Set(cast);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
@@ -360,11 +360,11 @@ void NumericCasts::MarkAsDoubleCallback(const v8::FunctionCallbackInfo<Value>& a
     }
 }
 
-void NumericCasts::MarkJsObject(Isolate* isolate, const Local<Object>& object, CastType castType, const Local<Value>& value) {
+void NumericCasts::MarkJsObject(Local<Context> context, const Local<Object>& object, CastType castType, const Local<Value>& value) {
+    Isolate* isolate = context->GetIsolate();
     auto key = ArgConverter::ConvertToV8String(isolate, s_castMarker);
     auto type = Integer::New(isolate, static_cast<int>(castType));
     V8SetPrivateValue(isolate, object, key, type);
-    Local<Context> context = object->GetCreationContextChecked();
     object->Set(context, V8StringConstants::GetValue(isolate), value);
 
     DEBUG_WRITE("MarkJsObject: Marking js object: %d with cast type: %d", object->GetIdentityHash(), castType);

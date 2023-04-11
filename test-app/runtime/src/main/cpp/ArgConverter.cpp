@@ -72,8 +72,8 @@ void ArgConverter::NativeScriptLongFunctionCallback(const v8::FunctionCallbackIn
         auto thiz = args.This();
         auto cache = GetTypeLongCache(isolate);
         V8SetPrivateValue(isolate, thiz, V8StringConstants::GetJavaLong(isolate), Boolean::New(isolate, true));
-        NumericCasts::MarkAsLong(isolate, thiz, args[0]);
-        auto context = isolate->GetCurrentContext();
+        Local<Context> context = isolate->GetCurrentContext();
+        NumericCasts::MarkAsLong(context, thiz, args[0]);
         thiz->SetPrototype(context, Local<NumberObject>::New(isolate, *cache->NanNumberObject));
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
