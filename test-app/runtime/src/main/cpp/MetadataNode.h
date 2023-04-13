@@ -47,17 +47,17 @@ class MetadataNode {
 
         v8::Local<v8::Object> CreateArrayWrapper(v8::Isolate* isolate);
 
-        static MetadataNode* GetNodeFromHandle(const v8::Local<v8::Object>& value);
+        static MetadataNode* GetNodeFromHandle(v8::Local<v8::Context> context, const v8::Local<v8::Object>& value);
 
         static v8::Local<v8::Object> CreateExtendedJSWrapper(v8::Isolate* isolate, ObjectManager* objectManager, const std::string& proxyClassName);
 
-        static v8::Local<v8::Object> GetImplementationObject(v8::Isolate* isolate, const v8::Local<v8::Object>& object);
+        static v8::Local<v8::Object> GetImplementationObject(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object);
 
         static void CreateTopLevelNamespaces(v8::Isolate* isolate, const v8::Local<v8::Object>& global);
 
         static MetadataNode* GetOrCreate(const std::string& className);
 
-        static std::string GetTypeMetadataName(v8::Isolate* isolate, v8::Local<v8::Value>& value);
+        static std::string GetTypeMetadataName(v8::Local<v8::Context> context, v8::Local<v8::Value>& value);
 
         static void onDisposeIsolate(v8::Isolate* isolate);
     private:
@@ -119,13 +119,13 @@ class MetadataNode {
 
         static MetadataEntry GetChildMetadataForPackage(MetadataNode* node, const std::string& propName);
 
-        static MetadataNode* GetInstanceMetadata(v8::Isolate* isolate, const v8::Local<v8::Object>& value);
+        static MetadataNode* GetInstanceMetadata(v8::Local<v8::Context> context, const v8::Local<v8::Object>& value);
 
-        static void SetInstanceMetadata(v8::Isolate* isolate, v8::Local<v8::Object> value, MetadataNode* node);
+        static void SetInstanceMetadata(v8::Local<v8::Context> context, v8::Local<v8::Object> value, MetadataNode* node);
 
-        static TypeMetadata* GetTypeMetadata(v8::Isolate* isolate, const v8::Local<v8::Function>& value);
+        static TypeMetadata* GetTypeMetadata(v8::Local<v8::Context> context, const v8::Local<v8::Function>& value);
 
-        static void SetTypeMetadata(v8::Isolate* isolate, v8::Local<v8::Function> value, TypeMetadata* data);
+        static void SetTypeMetadata(v8::Local<v8::Context> context, v8::Local<v8::Function> value, TypeMetadata* data);
 
         static std::string CreateFullClassName(const std::string& className, const std::string& extendNameAndLocation);
         static void MethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info);

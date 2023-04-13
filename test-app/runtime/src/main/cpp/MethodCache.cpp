@@ -108,20 +108,19 @@ string MethodCache::EncodeSignature(const string& className, const string& metho
 
     for (int i = 0; i < len; i++) {
         sig.append(".");
-        sig.append(GetType(args.GetIsolate(), args[i]));
+        sig.append(GetType(args.GetIsolate()->GetCurrentContext(), args[i]));
     }
 
     return sig;
 }
 
-string MethodCache::GetType(Isolate* isolate, const v8::Local<v8::Value>& value) {
+string MethodCache::GetType(Local<Context> context, const Local<Value>& value) {
     string type;
 
     if (value->IsObject()) {
-        auto context = isolate->GetCurrentContext();
         auto objVal = value->ToObject(context).ToLocalChecked();
         Local<Value> nullNode; //out
-        V8GetPrivateValue(isolate, objVal, V8StringConstants::GetNullNodeName(isolate), nullNode);
+        V8GetPrivateValue(context, objVal, V8StringConstants::GetNullNodeName(context->GetIsolate()), nullNode);
 
         if (!nullNode.IsEmpty()) {
             auto treeNode = reinterpret_cast<MetadataNode*>(nullNode.As<External>()->Value());
@@ -162,16 +161,14 @@ string MethodCache::GetType(Isolate* isolate, const v8::Local<v8::Value>& value)
     } else if (value->IsString() || value->IsStringObject()) {
         type = "string";
     } else if (value->IsNumber() || value->IsNumberObject()) {
-        auto context = isolate->GetCurrentContext();
         double d = value->NumberValue(context).ToChecked();
         int64_t i = (int64_t) d;
         bool isInteger = d == i;
 
         type = isInteger ? "intnumber" : "doublenumber";
     } else if (value->IsObject()) {
-        auto context = isolate->GetCurrentContext();
         auto object = value->ToObject(context).ToLocalChecked();
-        auto castType = NumericCasts::GetCastType(isolate, object);
+        auto castType = NumericCasts::GetCastType(context, object);
         MetadataNode* node;
 
         switch (castType) {
@@ -200,7 +197,7 @@ string MethodCache::GetType(Isolate* isolate, const v8::Local<v8::Value>& value)
             break;
 
         case CastType::None:
-            node = MetadataNode::GetNodeFromHandle(object);
+            node = MetadataNode::GetNodeFromHandle(context, object);
             type = (node != nullptr) ? node->GetName() : "<unknown>";
             break;
 

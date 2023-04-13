@@ -27,7 +27,7 @@ bool tns::ConvertJavaScriptObject(
     auto context = isolate->GetCurrentContext();
     auto jsObject = arg->ToObject(context).ToLocalChecked();
 
-    auto castType = NumericCasts::GetCastType(isolate, jsObject);
+    CastType castType = NumericCasts::GetCastType(context, jsObject);
 
     Local<Value> castValue;
     JniLocalRef obj;
@@ -216,7 +216,7 @@ bool tns::ConvertJavaScriptObject(
                 obj = objectManager->GetJavaObjectByJsObject(jsObject);
             }
 
-            V8GetPrivateValue(isolate, jsObject, ArgConverter::ConvertToV8String(isolate,
+            V8GetPrivateValue(context, jsObject, ArgConverter::ConvertToV8String(isolate,
                                                                                  V8StringConstants::NULL_NODE_NAME),
                               castValue);
 

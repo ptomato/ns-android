@@ -19,7 +19,7 @@ class NumericCasts {
     public:
         void CreateGlobalCastFunctions(v8::Isolate* isolate, const v8::Local<v8::ObjectTemplate>& globalTemplate);
 
-        static CastType GetCastType(v8::Isolate* isolate, const v8::Local<v8::Object>& object);
+        static CastType GetCastType(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object);
 
         static v8::Local<v8::Value> GetCastValue(v8::Local<v8::Context> context, const v8::Local<v8::Object>& object);
 

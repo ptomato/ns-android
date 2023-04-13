@@ -137,7 +137,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
     } else if (arg->IsObject()) {
         auto jsObj = arg->ToObject(context).ToLocalChecked();
 
-        auto castType = NumericCasts::GetCastType(isolate, jsObj);
+        auto castType = NumericCasts::GetCastType(context, jsObj);
 
         Local<Value> castValue;
         jchar charValue;
@@ -338,7 +338,7 @@ bool JsArgToArrayConverter::ConvertArg(Local<Context> context, const Local<Value
                 }
 
 
-                V8GetPrivateValue(isolate, jsObj, V8StringConstants::GetNullNodeName(isolate),
+                V8GetPrivateValue(context, jsObj, V8StringConstants::GetNullNodeName(isolate),
                                   castValue);
 
                 if (!castValue.IsEmpty()) {

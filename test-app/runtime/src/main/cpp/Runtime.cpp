@@ -350,7 +350,7 @@ void Runtime::CreateJSInstanceNative(jobject obj, jobject javaObject, jint javaO
         throw NativeScriptException(string("Failed to create JavaScript extend wrapper for class '" + proxyClassName + "'"));
     }
 
-    implementationObject = MetadataNode::GetImplementationObject(isolate, jsInstance);
+    implementationObject = MetadataNode::GetImplementationObject(GetContext(), jsInstance);
     if (implementationObject.IsEmpty()) {
         string msg("createJSInstanceNative: implementationObject is empty");
         throw NativeScriptException(msg);

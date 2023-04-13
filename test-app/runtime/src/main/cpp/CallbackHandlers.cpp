@@ -201,6 +201,7 @@ void CallbackHandlers::CallJavaMethod(const Local<Object> &caller, const string 
     MethodCache::CacheMethodInfo mi;
 
     auto isolate = args.GetIsolate();
+    Local<Context> context = isolate->GetCurrentContext();
 
     if ((entry != nullptr) && entry->isResolved) {
         isStatic = entry->isStatic;
@@ -209,7 +210,7 @@ void CallbackHandlers::CallJavaMethod(const Local<Object> &caller, const string 
             clazz = env.FindClass(className);
 
             if (clazz == nullptr) {
-                MetadataNode *callerNode = MetadataNode::GetNodeFromHandle(caller);
+                MetadataNode *callerNode = MetadataNode::GetNodeFromHandle(context, caller);
                 const string callerClassName = callerNode->GetName();
 
                 DEBUG_WRITE("Cannot resolve class: %s while calling method: %s callerClassName: %s",
@@ -283,7 +284,7 @@ void CallbackHandlers::CallJavaMethod(const Local<Object> &caller, const string 
                 return;
             }
         } else {
-            MetadataNode *callerNode = MetadataNode::GetNodeFromHandle(caller);
+            MetadataNode *callerNode = MetadataNode::GetNodeFromHandle(context, caller);
             const string callerClassName = callerNode->GetName();
             DEBUG_WRITE("Resolving method on caller class: %s.%s on className %s",
                         callerClassName.c_str(), methodName.c_str(), className.c_str());
@@ -572,7 +573,7 @@ CallbackHandlers::GetImplementedInterfaces(JEnv &env, const Local<Object> &imple
             auto element = interfacesArr->Get(context, j).ToLocalChecked();
 
             if (element->IsFunction()) {
-                auto node = MetadataNode::GetTypeMetadataName(isolate, element);
+                auto node = MetadataNode::GetTypeMetadataName(context, element);
 
                 node = Util::ReplaceAll(node, std::string("/"), std::string("."));
 
@@ -1009,7 +1010,7 @@ void CallbackHandlers::NewThreadCallback(const v8::FunctionCallbackInfo<v8::Valu
         ModuleInternal::CheckFileExists(isolate, workerPath, currentDir);
 
         auto workerId = nextWorkerId++;
-        V8SetPrivateValue(isolate, thiz, ArgConverter::ConvertToV8String(isolate, "workerId"),
+        V8SetPrivateValue(context, thiz, ArgConverter::ConvertToV8String(isolate, "workerId"),
                           Number::New(isolate, workerId));
 
         auto persistentWorker = new Persistent<Object>(isolate, thiz);
@@ -1040,6 +1041,7 @@ void CallbackHandlers::NewThreadCallback(const v8::FunctionCallbackInfo<v8::Valu
 void
 CallbackHandlers::WorkerObjectPostMessageCallback(const v8::FunctionCallbackInfo<v8::Value> &args) {
     auto isolate = args.GetIsolate();
+    Local<Context> context = isolate->GetCurrentContext();
 
     HandleScope scope(isolate);
 
@@ -1054,11 +1056,10 @@ CallbackHandlers::WorkerObjectPostMessageCallback(const v8::FunctionCallbackInfo
 
         Local<Value> jsId;
 
-        auto maybejsId = V8GetPrivateValue(isolate, thiz,
+        auto maybejsId = V8GetPrivateValue(context, thiz,
                                            ArgConverter::ConvertToV8String(isolate, "workerId"),
                                            jsId);
 
-        auto context = isolate->GetCurrentContext();
         auto objToStringify = args[0]->ToObject(context).ToLocalChecked();
         std::string msg = tns::JsonStringifyObject(isolate, objToStringify, false);
 
@@ -1263,7 +1264,7 @@ CallbackHandlers::WorkerObjectTerminateCallback(const v8::FunctionCallbackInfo<v
 
         Local<Value> jsId;
 
-        auto maybejsId = V8GetPrivateValue(isolate, thiz,
+        auto maybejsId = V8GetPrivateValue(context, thiz,
                                            ArgConverter::ConvertToV8String(isolate, "workerId"),
                                            jsId);
 
@@ -1271,7 +1272,7 @@ CallbackHandlers::WorkerObjectTerminateCallback(const v8::FunctionCallbackInfo<v
         auto id = jsId->Int32Value(context).ToChecked();
 
         Local<Value> isTerminated;
-        V8GetPrivateValue(isolate, thiz, ArgConverter::ConvertToV8String(isolate, "isTerminated"),
+        V8GetPrivateValue(context, thiz, ArgConverter::ConvertToV8String(isolate, "isTerminated"),
                           isTerminated);
 
         if (!isTerminated.IsEmpty() && isTerminated->BooleanValue(isolate)) {
@@ -1281,7 +1282,7 @@ CallbackHandlers::WorkerObjectTerminateCallback(const v8::FunctionCallbackInfo<v
             return;
         }
 
-        V8SetPrivateValue(isolate, thiz, ArgConverter::ConvertToV8String(isolate, "isTerminated"),
+        V8SetPrivateValue(context, thiz, ArgConverter::ConvertToV8String(isolate, "isTerminated"),
                           Boolean::New(isolate, true));
 
         JEnv env;
@@ -1616,7 +1617,7 @@ void CallbackHandlers::PostFrameCallback(const FunctionCallbackInfo<v8::Value> &
         auto idKey = ArgConverter::ConvertToV8String(isolate, "_postFrameCallbackId");
 
         Local<Value> pId;
-        bool success = V8GetPrivateValue(isolate, func, idKey, pId);
+        bool success = V8GetPrivateValue(context, func, idKey, pId);
 
         if (success && pId->IsNumber()){
             auto id = pId->IntegerValue(context).FromMaybe(0);
@@ -1636,7 +1637,7 @@ void CallbackHandlers::PostFrameCallback(const FunctionCallbackInfo<v8::Value> &
         Local<v8::Function> callback = func;
         uint64_t key = ++frameCallbackCount_;
 
-        V8SetPrivateValue(isolate, func, idKey, v8::Number::New(isolate, (double) key));
+        V8SetPrivateValue(context, func, idKey, v8::Number::New(isolate, (double) key));
 
         robin_hood::unordered_map<uint64_t, FrameCallbackCacheEntry>::iterator val;
         bool inserted;
@@ -1668,7 +1669,7 @@ void CallbackHandlers::RemoveFrameCallback(const FunctionCallbackInfo<v8::Value>
         auto idKey = ArgConverter::ConvertToV8String(isolate, "_postFrameCallbackId");
 
         Local<Value> pId;
-        bool success = V8GetPrivateValue(isolate, func, idKey, pId);
+        bool success = V8GetPrivateValue(context, func, idKey, pId);
 
         if (success && pId->IsNumber()){
             auto id = pId->IntegerValue(context).FromMaybe(0);

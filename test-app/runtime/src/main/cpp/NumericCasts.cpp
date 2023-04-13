@@ -22,13 +22,12 @@ void NumericCasts::CreateGlobalCastFunctions(Isolate* isolate, const Local<Objec
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "char"), FunctionTemplate::New(isolate, NumericCasts::MarkAsCharCallbackStatic, ext));
 }
 
-CastType NumericCasts::GetCastType(Isolate* isolate, const Local<Object>& object) {
+CastType NumericCasts::GetCastType(Local<Context> context, const Local<Object>& object) {
     auto ret = CastType::None;
-    auto key = ArgConverter::ConvertToV8String(isolate, s_castMarker);
+    auto key = ArgConverter::ConvertToV8String(context->GetIsolate(), s_castMarker);
     Local<Value> hidden;
-    V8GetPrivateValue(isolate, object, key, hidden);
+    V8GetPrivateValue(context, object, key, hidden);
     if (!hidden.IsEmpty()) {
-        auto context = isolate->GetCurrentContext();
         ret = static_cast<CastType>(hidden->Int32Value(context).ToChecked());
     }
 
@@ -363,7 +362,7 @@ void NumericCasts::MarkJsObject(Local<Context> context, const Local<Object>& obj
     Isolate* isolate = context->GetIsolate();
     auto key = ArgConverter::ConvertToV8String(isolate, s_castMarker);
     auto type = Integer::New(isolate, static_cast<int>(castType));
-    V8SetPrivateValue(isolate, object, key, type);
+    V8SetPrivateValue(context, object, key, type);
     object->Set(context, V8StringConstants::GetValue(isolate), value);
 
     DEBUG_WRITE("MarkJsObject: Marking js object: %d with cast type: %d", object->GetIdentityHash(), castType);
