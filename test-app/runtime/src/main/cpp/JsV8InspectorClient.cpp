@@ -83,7 +83,8 @@ void JsV8InspectorClient::scheduleBreak() {
 }
 
 void JsV8InspectorClient::createInspectorSession() {
-    session_ = inspector_->connect(JsV8InspectorClient::contextGroupId, this, {});
+    session_ = inspector_->connect(JsV8InspectorClient::contextGroupId, this, {},
+                                   V8Inspector::ClientTrustLevel::kFullyTrusted);
 }
 
 void JsV8InspectorClient::disconnect() {
