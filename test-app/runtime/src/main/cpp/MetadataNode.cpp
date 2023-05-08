@@ -1151,7 +1151,7 @@ void MetadataNode::ExtendedClassConstructorCallback(const v8::FunctionCallbackIn
 
         string fullClassName = extData->fullClassName;
 
-        bool success = CallbackHandlers::RegisterInstance(isolate, thiz, fullClassName, argWrapper, implementationObject, false, extData->node->m_name);
+        bool success = CallbackHandlers::RegisterInstance(context, thiz, fullClassName, argWrapper, implementationObject, false, extData->node->m_name);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -1215,7 +1215,7 @@ void MetadataNode::InterfaceConstructorCallback(const v8::FunctionCallbackInfo<v
 
         ArgsWrapper argWrapper(info, ArgType::Interface);
 
-        auto success = CallbackHandlers::RegisterInstance(isolate, thiz, className, argWrapper, implementationObject, true);
+        bool success = CallbackHandlers::RegisterInstance(context, thiz, className, argWrapper, implementationObject, true);
 
         if (frame.check()) {
             frame.log("Interface constructor: " + node->m_name);
@@ -1252,7 +1252,7 @@ void MetadataNode::ClassConstructorCallback(const v8::FunctionCallbackInfo<v8::V
         ArgsWrapper argWrapper(info, ArgType::Class);
 
         string fullClassName = CreateFullClassName(className, extendName);
-        bool success = CallbackHandlers::RegisterInstance(isolate, thiz, fullClassName, argWrapper, Local<Object>(), false, className);
+        bool success = CallbackHandlers::RegisterInstance(context, thiz, fullClassName, argWrapper, Local<Object>(), false, className);
     } catch (NativeScriptException& e) {
         e.ReThrowToV8();
     } catch (std::exception e) {
@@ -1691,9 +1691,10 @@ void MetadataNode::ExtendMethodCallback(const v8::FunctionCallbackInfo<v8::Value
         }
 
         //resolve class (pre-generated or generated runtime from dex generator)
+        Local<Context> context = isolate->GetCurrentContext();
         uint8_t nodeType = s_metadataReader.GetNodeType(node->m_treeNode);
         bool isInterface = s_metadataReader.IsNodeTypeInterface(nodeType);
-        auto clazz = CallbackHandlers::ResolveClass(isolate, baseClassName, fullClassName, implementationObject, isInterface);
+        auto clazz = CallbackHandlers::ResolveClass(context, baseClassName, fullClassName, implementationObject, isInterface);
         JEnv env;
         std::string fullExtendedName{env.GetClassName(clazz)};
         DEBUG_WRITE("ExtendsCallMethodHandler: extend full name %s", fullClassName.c_str());
@@ -1705,7 +1706,6 @@ void MetadataNode::ExtendMethodCallback(const v8::FunctionCallbackInfo<v8::Value
             return;
         }
 
-        Local<Context> context = isolate->GetCurrentContext();
         auto implementationObjectPropertyName = V8StringConstants::GetClassImplementationObject(isolate);
         //reuse validation - checks that implementationObject is not reused for different classes
         Local<Value> hiddenVal;

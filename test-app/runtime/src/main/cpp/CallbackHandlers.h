@@ -36,14 +36,14 @@ namespace tns {
         static v8::Local<v8::Object>
         CreateJSWrapper(v8::Isolate *isolate, jint javaObjectID, const std::string &typeName);
 
-        static bool RegisterInstance(v8::Isolate *isolate, const v8::Local<v8::Object> &jsObject,
+        static bool RegisterInstance(v8::Local<v8::Context> context, const v8::Local<v8::Object> &jsObject,
                                      const std::string &fullClassName,
                                      const ArgsWrapper &argWrapper,
                                      const v8::Local<v8::Object> &implementationObject,
                                      bool isInterface,
                                      const std::string &baseClassName = std::string());
 
-        static jclass ResolveClass(v8::Isolate *isolate, const std::string &baseClassName,
+        static jclass ResolveClass(v8::Local<v8::Context> context, const std::string &baseClassName,
                                    const std::string &fullClassName,
                                    const v8::Local<v8::Object> &implementationObject,
                                    bool isInterface);
@@ -104,7 +104,8 @@ namespace tns {
          * the dexFactory generates the class
          */
         static jobjectArray
-        GetMethodOverrides(JEnv &env, const v8::Local<v8::Object> &implementationObject);
+        GetMethodOverrides(JEnv &env, v8::Local<v8::Context> context,
+                           const v8::Local<v8::Object> &implementationObject);
 
         /*
          * Gets all interfaces declared in the 'interfaces' array inside the implementation object,
@@ -112,7 +113,8 @@ namespace tns {
          * implemented when the dexFactory generates the corresponding class
          */
         static jobjectArray
-        GetImplementedInterfaces(JEnv &env, const v8::Local<v8::Object> &implementationObject);
+        GetImplementedInterfaces(JEnv &env, v8::Local<v8::Context> context,
+                                 const v8::Local<v8::Object> &implementationObject);
 
         static void
         EnableVerboseLoggingMethodCallback(const v8::FunctionCallbackInfo<v8::Value> &args);

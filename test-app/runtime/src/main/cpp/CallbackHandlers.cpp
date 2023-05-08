@@ -65,7 +65,7 @@ void CallbackHandlers::Init(Isolate *isolate) {
     MethodCache::Init();
 }
 
-bool CallbackHandlers::RegisterInstance(Isolate *isolate, const Local<Object> &jsObject,
+bool CallbackHandlers::RegisterInstance(Local<Context> context, const Local<Object> &jsObject,
                                         const std::string &fullClassName,
                                         const ArgsWrapper &argWrapper,
                                         const Local<Object> &implementationObject,
@@ -75,12 +75,13 @@ bool CallbackHandlers::RegisterInstance(Isolate *isolate, const Local<Object> &j
 
     DEBUG_WRITE("RegisterInstance called for '%s'", fullClassName.c_str());
 
+    Isolate* isolate = context->GetIsolate();
     auto runtime = Runtime::GetRuntime(isolate);
     auto objectManager = runtime->GetObjectManager();
 
     JEnv env;
 
-    jclass generatedJavaClass = ResolveClass(isolate, baseClassName, fullClassName,
+    jclass generatedJavaClass = ResolveClass(context, baseClassName, fullClassName,
                                              implementationObject,
                                              isInterface);
 
@@ -126,7 +127,7 @@ bool CallbackHandlers::RegisterInstance(Isolate *isolate, const Local<Object> &j
     return success;
 }
 
-jclass CallbackHandlers::ResolveClass(Isolate *isolate, const string &baseClassName,
+jclass CallbackHandlers::ResolveClass(Local<Context> context, const string &baseClassName,
                                       const string &fullClassName,
                                       const Local<Object> &implementationObject, bool isInterface) {
     JEnv env;
@@ -138,10 +139,11 @@ jclass CallbackHandlers::ResolveClass(Isolate *isolate, const string &baseClassN
         JniLocalRef javaBaseClassName(env.NewStringUTF(baseClassName.c_str()));
         JniLocalRef javaFullClassName(env.NewStringUTF(fullClassName.c_str()));
 
-        jobjectArray methodOverrides = GetMethodOverrides(env, implementationObject);
+        jobjectArray methodOverrides = GetMethodOverrides(env, context, implementationObject);
 
-        jobjectArray implementedInterfaces = GetImplementedInterfaces(env, implementationObject);
+        jobjectArray implementedInterfaces = GetImplementedInterfaces(env, context, implementationObject);
 
+        Isolate* isolate = context->GetIsolate();
         auto runtime = Runtime::GetRuntime(isolate);
 
         // create or load generated binding (java class)
@@ -552,14 +554,13 @@ Local<Object> CallbackHandlers::CreateJSWrapper(Isolate *isolate, jint javaObjec
 
 
 jobjectArray
-CallbackHandlers::GetImplementedInterfaces(JEnv &env, const Local<Object> &implementationObject) {
+CallbackHandlers::GetImplementedInterfaces(JEnv &env, Local<Context> context, const Local<Object> &implementationObject) {
     if (implementationObject.IsEmpty()) {
         return CallbackHandlers::GetJavaStringArray(env, 0);
     }
 
     vector<jstring> interfacesToImplement;
-    auto isolate = implementationObject->GetIsolate();
-    Local<Context> context = implementationObject->GetCreationContextChecked();
+    auto isolate = context->GetIsolate();
     Local<String> interfacesName = String::NewFromUtf8Literal(isolate, "interfaces");
     Local<Value> prop;
     if (implementationObject->Get(context, interfacesName).ToLocal(&prop) && !prop.IsEmpty() && prop->IsArray()) {
@@ -598,14 +599,13 @@ CallbackHandlers::GetImplementedInterfaces(JEnv &env, const Local<Object> &imple
 }
 
 jobjectArray
-CallbackHandlers::GetMethodOverrides(JEnv &env, const Local<Object> &implementationObject) {
+CallbackHandlers::GetMethodOverrides(JEnv &env, Local<Context> context, const Local<Object> &implementationObject) {
     if (implementationObject.IsEmpty()) {
         return CallbackHandlers::GetJavaStringArray(env, 0);
     }
 
     vector<jstring> methodNames;
-    auto isolate = implementationObject->GetIsolate();
-    Local<Context> context = implementationObject->GetCreationContextChecked();
+    Isolate* isolate = context->GetIsolate();
     auto propNames = implementationObject->GetOwnPropertyNames(context).ToLocalChecked();
     for (int i = 0; i < propNames->Length(); i++) {
         auto name = propNames->Get(context, i).ToLocalChecked().As<String>();
