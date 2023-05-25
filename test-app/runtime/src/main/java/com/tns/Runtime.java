@@ -961,24 +961,39 @@ public class Runtime {
     }
 
     @RuntimeCallable
-    private boolean makeInstanceWeakAndCheckIfAlive(int javaObjectID) {
+    private boolean isInstanceAlive(int javaObjectID) {
+        Object instance = strongInstances.get(javaObjectID);
+        if (instance != null)
+            return true;
+
+        WeakReference<Object> ref = weakInstances.get(javaObjectID);
+        if (ref == null)
+            return false;
+
+        instance = ref.get();
+        if (instance != null)
+            return true;
+
+        // The Java instance has been collected; clean up the weak ref.
+        weakInstances.remove(javaObjectID);
+        weakJavaObjectToID.remove(ref);
+        return false;
+    }
+
+    @RuntimeCallable
+    private void makeInstanceWeak(int javaObjectID) {
         if (logger.isEnabled()) {
-            logger.write("makeInstanceWeakAndCheckIfAlive instance " + javaObjectID);
+            logger.write("makeInstanceWeak instance " + javaObjectID);
         }
         Object instance = strongInstances.get(javaObjectID);
         if (instance == null) {
             WeakReference<Object> ref = weakInstances.get(javaObjectID);
-            if (ref == null) {
-                return false;
-            } else {
+            if (ref != null) {
                 instance = ref.get();
                 if (instance == null) {
                     // The Java was moved from strong to weak, and then the Java instance was collected.
                     weakInstances.remove(javaObjectID);
                     weakJavaObjectToID.remove(ref);
-                    return false;
-                } else {
-                    return true;
                 }
             }
         } else {
@@ -987,8 +1002,6 @@ public class Runtime {
 
             weakJavaObjectToID.put(instance, javaObjectID);
             weakInstances.put(javaObjectID, new WeakReference<Object>(instance));
-
-            return true;
         }
     }
 

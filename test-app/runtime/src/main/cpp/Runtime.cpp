@@ -33,8 +33,11 @@
 #include <thread>
 
 #include <cppgc/default-platform.h>
+#include <cppgc/platform.h>
+#include <v8-cppgc.h>
 
 #include "File.h"
+#include "GCUtil.h"
 
 #ifdef APPLICATION_IN_DEBUG
 // #include "NetworkDomainCallbackHandlers.h"
@@ -453,6 +456,7 @@ void Runtime::PassUncaughtExceptionFromWorkerToMainHandler(Local<v8::String> mes
 static void InitializeV8() {
     Runtime::platform = std::make_shared<cppgc::DefaultPlatform>();
     V8::InitializePlatform(Runtime::platform->GetV8Platform());
+    cppgc::InitializeProcess(Runtime::platform->GetPageAllocator());
     V8::Initialize();
 }
 
@@ -472,7 +476,10 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
     }
 
     tns::instrumentation::Frame isolateFrame;
+    CppHeapCreateParams heap_create_params{{}, kGarbageCollectedWrapperDescriptor};
+    m_heap = std::move(CppHeap::Create(Runtime::platform->GetV8Platform(), heap_create_params));
     auto isolate = Isolate::New(create_params);
+    isolate->AttachCppHeap(m_heap.get());
     isolateFrame.log("Isolate.New");
 
     s_isolate2RuntimesCache[isolate] = this;

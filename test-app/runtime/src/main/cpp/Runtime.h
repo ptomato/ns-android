@@ -22,6 +22,10 @@ namespace cppgc {
 class DefaultPlatform;
 }
 
+namespace v8 {
+class CppHeap;
+}
+
 namespace tns {
 class Runtime {
     public:
@@ -91,6 +95,7 @@ class Runtime {
         int m_id;
         jobject m_runtime;
         v8::Isolate* m_isolate;
+        std::unique_ptr<v8::CppHeap> m_heap;
 
         std::unique_ptr<ObjectManager> m_objectManager;
 

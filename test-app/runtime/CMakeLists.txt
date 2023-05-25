@@ -100,12 +100,14 @@ add_library(
         src/main/cpp/FieldAccessor.cpp
         src/main/cpp/File.cpp
         src/main/cpp/IsolateDisposer.cpp
+        src/main/cpp/JavaObjectMap.cpp
         src/main/cpp/JEnv.cpp
         src/main/cpp/DesugaredInterfaceCompanionClassNameResolver.cpp
         src/main/cpp/JType.cpp
         src/main/cpp/JniSignatureParser.cpp
         src/main/cpp/JsArgConverter.cpp
         src/main/cpp/JsArgToArrayConverter.cpp
+        src/main/cpp/JSInstanceInfo.cpp
         src/main/cpp/JSONObjectHelper.cpp
         src/main/cpp/Logger.cpp
         src/main/cpp/ManualInstrumentation.cpp

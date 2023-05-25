@@ -14,7 +14,18 @@
 #include <vector>
 #include <string>
 
+#include <jni.h>
+
+#include <cppgc/garbage-collected.h>
+#include <cppgc/persistent.h>
+#include <v8-cppgc.h>
+
+#include "GCUtil.h"
+#include "JavaObjectMap.h"
+
 namespace tns {
+class JSInstanceInfo;
+
 class ObjectManager {
     public:
         ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject);
@@ -24,6 +35,7 @@ class ObjectManager {
         jint GetOrCreateObjectId(jobject object);
 
         v8::Local<v8::Object> GetJsObjectByJavaObject(jint javaObjectID);
+        void DropJSObjectByJavaObject(jint javaObjectID);
 
         v8::Local<v8::Object> CreateJSWrapper(jint javaObjectID, const std::string& typeName);
 
@@ -39,46 +51,22 @@ class ObjectManager {
 
         v8::Local<v8::Object> GetEmptyObject(v8::Isolate* isolate);
 
+        void MakeJavaInstanceWeak(jint javaObjectID);
+        bool IsJavaInstanceAlive(jint javaObjectID);
+
         enum class MetadataNodeKeys {
-            JsInfo,
-            CallSuper,
+            CallSuper = kMinGarbageCollectedEmbedderFields,
             END
         };
 
         void LogGCStats();
 
     private:
-
-        struct JSInstanceInfo {
-            public:
-                static std::atomic<ssize_t> s_liveCount;
-
-                JSInstanceInfo(jint javaObjectID)
-                    : JavaObjectID(javaObjectID) {
-                    ++s_liveCount;
-                }
-                ~JSInstanceInfo();
-
-                jint JavaObjectID;
-        };
-
-        struct ObjectWeakCallbackState {
-            ObjectWeakCallbackState(ObjectManager* _thisPtr, v8::Persistent<v8::Object>* _target)
-                : thisPtr(_thisPtr), target(_target) {
-            }
-
-            ObjectManager* thisPtr;
-            v8::Persistent<v8::Object>* target;
-        };
-
         JSInstanceInfo* GetJSInstanceInfo(const v8::Local<v8::Object>& object);
 
         JSInstanceInfo* GetJSInstanceInfoFromRuntimeObject(const v8::Local<v8::Object>& object);
 
         v8::Local<v8::Object> CreateJSWrapperHelper(jint javaObjectID, const std::string& typeName, jclass clazz);
-
-        static void JSObjectFinalizerStatic(const v8::WeakCallbackInfo<ObjectWeakCallbackState>& data);
-        void JSObjectFinalizer(v8::Isolate* isolate, ObjectWeakCallbackState* callbackState);
 
         jweak GetJavaObjectByID(jint javaObjectID);
 
@@ -97,7 +85,7 @@ class ObjectManager {
 
         v8::Isolate* m_isolate;
 
-        std::unordered_map<jint, v8::Persistent<v8::Object>*> m_idToObject;
+        cppgc::Persistent<JavaObjectMap> m_idToObject;
 
         LRUCache<jint, jweak> m_cache;
 
@@ -107,7 +95,8 @@ class ObjectManager {
 
         jmethodID GET_OR_CREATE_JAVA_OBJECT_ID_METHOD_ID;
 
-        jmethodID MAKE_INSTANCE_WEAK_AND_CHECK_IF_ALIVE_METHOD_ID;
+        jmethodID IS_INSTANCE_ALIVE_METHOD_ID;
+        jmethodID MAKE_INSTANCE_WEAK_METHOD_ID;
 
         jmethodID RELEASE_NATIVE_INSTANCE_METHOD_ID;
 

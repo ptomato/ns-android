@@ -1,4 +1,3 @@
-#include <cassert>
 #include <chrono>
 
 #include "ObjectManager.h"
@@ -13,6 +12,9 @@
 #include "include/v8.h"
 #include <algorithm>
 #include <sstream>
+
+#include "GCUtil.h"
+#include "JSInstanceInfo.h"
 #include "ManualInstrumentation.h"
 
 using namespace v8;
@@ -23,6 +25,7 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
         m_isolate(isolate),
         m_javaRuntimeObject(javaRuntimeObject),
         m_currentObjectId(0),
+        m_idToObject(MakeGarbageCollected<JavaObjectMap>(isolate)),
         m_cache(NewWeakGlobalRefCallback, DeleteWeakGlobalRefCallback, 1000, this) {
 
     JEnv env;
@@ -38,10 +41,10 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
                                                                "(Ljava/lang/Object;)I");
     assert(GET_OR_CREATE_JAVA_OBJECT_ID_METHOD_ID != nullptr);
 
-    MAKE_INSTANCE_WEAK_AND_CHECK_IF_ALIVE_METHOD_ID = env.GetMethodID(runtimeClass,
-                                                                        "makeInstanceWeakAndCheckIfAlive",
-                                                                        "(I)Z");
-    assert(MAKE_INSTANCE_WEAK_AND_CHECK_IF_ALIVE_METHOD_ID != nullptr);
+    IS_INSTANCE_ALIVE_METHOD_ID = env.GetMethodID(runtimeClass, "isInstanceAlive", "(I)Z");
+    MAKE_INSTANCE_WEAK_METHOD_ID = env.GetMethodID(runtimeClass,"makeInstanceWeak", "(I)V");
+    assert(IS_INSTANCE_ALIVE_METHOD_ID != nullptr);
+    assert(MAKE_INSTANCE_WEAK_METHOD_ID != nullptr);
 
     RELEASE_NATIVE_INSTANCE_METHOD_ID = env.GetMethodID(runtimeClass, "releaseNativeCounterpart",
                                                           "(I)V");
@@ -63,27 +66,25 @@ JniLocalRef ObjectManager::GetJavaObjectByJsObject(const Local<Object> &object) 
     JSInstanceInfo *jsInstanceInfo = GetJSInstanceInfo(object);
 
     if (jsInstanceInfo != nullptr) {
-        JniLocalRef javaObject(GetJavaObjectByID(jsInstanceInfo->JavaObjectID), true);
+        JniLocalRef javaObject(GetJavaObjectByID(jsInstanceInfo->JavaObjectID()), true);
         return javaObject;
     }
 
     return JniLocalRef();
 }
 
-ObjectManager::JSInstanceInfo *ObjectManager::GetJSInstanceInfo(const Local<Object> &object) {
+JSInstanceInfo* ObjectManager::GetJSInstanceInfo(const Local<Object> &object) {
     if (IsJsRuntimeObject(object)) {
         return GetJSInstanceInfoFromRuntimeObject(object);
     }
     return nullptr;
 }
 
-ObjectManager::JSInstanceInfo *
-ObjectManager::GetJSInstanceInfoFromRuntimeObject(const Local<Object> &object) {
+JSInstanceInfo* ObjectManager::GetJSInstanceInfoFromRuntimeObject(const Local<Object> &object) {
     HandleScope handleScope(m_isolate);
 
-    const int jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
-    auto jsInfo = object->GetInternalField(jsInfoIdx);
-    if (jsInfo->IsUndefined()) {
+    auto* jsInfo = ExtractWrapper<JSInstanceInfo>(object);
+    if (!jsInfo) {
         //Typescript object layout has an object instance as child of the actual registered instance. checking for that
         auto prototypeObject = object->GetPrototype().As<Object>();
 
@@ -91,17 +92,11 @@ ObjectManager::GetJSInstanceInfoFromRuntimeObject(const Local<Object> &object) {
             DEBUG_WRITE("GetJSInstanceInfo: need to check prototype :%d",
                         prototypeObject->GetIdentityHash());
             if (IsJsRuntimeObject(prototypeObject)) {
-                jsInfo = prototypeObject->GetInternalField(jsInfoIdx);
+                jsInfo = ExtractWrapper<JSInstanceInfo>(prototypeObject);
             }
         }
     }
-
-    if (!jsInfo.IsEmpty() && jsInfo->IsExternal()) {
-        auto external = jsInfo.As<External>();
-        return static_cast<JSInstanceInfo *>(external->Value());
-    }
-
-    return nullptr;
+    return jsInfo;
 }
 
 bool ObjectManager::IsJsRuntimeObject(const v8::Local<v8::Object> &object) {
@@ -132,20 +127,12 @@ jint ObjectManager::GetOrCreateObjectId(jobject object) {
 }
 
 Local<Object> ObjectManager::GetJsObjectByJavaObject(jint javaObjectID) {
-    auto isolate = m_isolate;
-    EscapableHandleScope handleScope(isolate);
-
-    auto it = m_idToObject.find(javaObjectID);
-    if (it == m_idToObject.end()) {
-        return handleScope.Escape(Local<Object>());
-    }
-
-    Persistent<Object> *jsObject = it->second;
-
-    auto localObject = Local<Object>::New(isolate, *jsObject);
-    return handleScope.Escape(localObject);
+    return m_idToObject->Get(m_isolate, javaObjectID);
 }
 
+void ObjectManager::DropJSObjectByJavaObject(jint javaObjectID) {
+    m_idToObject->Drop(javaObjectID);
+}
 
 Local<Object> ObjectManager::CreateJSWrapper(jint javaObjectID, const string &typeName) {
     return CreateJSWrapperHelper(javaObjectID, typeName, nullptr);
@@ -190,22 +177,10 @@ void ObjectManager::Link(const Local<Object> &object, jint javaObjectID) {
     DEBUG_WRITE("Linking js object: %d and java instance id: %d", object->GetIdentityHash(),
                 javaObjectID);
 
-    auto jsInstanceInfo = new JSInstanceInfo(javaObjectID);
+    auto* jsInstanceInfo = MakeGarbageCollected<JSInstanceInfo>(isolate, javaObjectID, this);
+    AttachGarbageCollectedWrapper(object, jsInstanceInfo);
 
-    auto objectHandle = new Persistent<Object>(isolate, object);
-    auto state = new ObjectWeakCallbackState(this, objectHandle);
-
-    // subscribe for JS GC event
-    objectHandle->SetWeak(state, JSObjectFinalizerStatic, WeakCallbackType::kFinalizer);
-
-    auto jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
-
-    auto jsInfo = External::New(isolate, jsInstanceInfo);
-
-    //link
-    object->SetInternalField(jsInfoIdx, jsInfo);
-
-    m_idToObject.insert(make_pair(javaObjectID, objectHandle));
+    m_idToObject->Add(isolate, javaObjectID, object);
 }
 
 bool ObjectManager::CloneLink(const Local<Object> &src, const Local<Object> &dest) {
@@ -214,55 +189,10 @@ bool ObjectManager::CloneLink(const Local<Object> &src, const Local<Object> &des
     auto success = jsInfo != nullptr;
 
     if (success) {
-        auto jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
-        // fetches the JSInstanceInfo again, but allows reusing the same v8::External
-        Local<Value> jsInfoExternal = src->GetInternalField(jsInfoIdx);
-        dest->SetInternalField(jsInfoIdx, jsInfoExternal);
+        AttachGarbageCollectedWrapper(dest, jsInfo);  // FIXME clone the jsInfo?
     }
 
     return success;
-}
-
-void ObjectManager::JSObjectFinalizerStatic(const WeakCallbackInfo<ObjectWeakCallbackState> &data) {
-    ObjectWeakCallbackState *callbackState = data.GetParameter();
-
-    ObjectManager *thisPtr = callbackState->thisPtr;
-
-    auto isolate = data.GetIsolate();
-
-    thisPtr->JSObjectFinalizer(isolate, callbackState);
-}
-
-void ObjectManager::JSObjectFinalizer(Isolate *isolate, ObjectWeakCallbackState *callbackState) {
-    HandleScope handleScope(m_isolate);
-    Persistent<Object> *po = callbackState->target;
-    auto jsInstanceInfo = GetJSInstanceInfoFromRuntimeObject(po->Get(m_isolate));
-
-    if (jsInstanceInfo == nullptr) {
-        po->Reset();
-        delete po;
-        delete callbackState;
-        return;
-    }
-
-    auto javaObjectID = jsInstanceInfo->JavaObjectID;
-    JEnv env;
-    jboolean isJavaInstanceAlive = env.CallBooleanMethod(m_javaRuntimeObject,
-                                                           MAKE_INSTANCE_WEAK_AND_CHECK_IF_ALIVE_METHOD_ID,
-                                                           javaObjectID);
-    if (isJavaInstanceAlive) {
-        // If the Java instance is alive, keep the JavaScript instance alive.
-        po->SetWeak(callbackState, JSObjectFinalizerStatic, WeakCallbackType::kFinalizer);
-    } else {
-        // If the Java instance is dead, this JavaScript instance can be let die.
-        delete jsInstanceInfo;
-        auto jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
-        po->Get(m_isolate)->SetInternalField(jsInfoIdx, Undefined(m_isolate));
-        po->Reset();
-        m_idToObject.erase(javaObjectID);
-        delete po;
-        delete callbackState;
-    }
 }
 
 jint ObjectManager::GenerateNewObjectID() {
@@ -307,16 +237,20 @@ void ObjectManager::ReleaseNativeCounterpart(v8::Local<v8::Object> &object) {
 
     JEnv env;
     env.CallVoidMethod(m_javaRuntimeObject, RELEASE_NATIVE_INSTANCE_METHOD_ID,
-                         jsInstanceInfo->JavaObjectID);
+                         jsInstanceInfo->JavaObjectID());
 
-    delete jsInstanceInfo;
-    auto jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
-    object->SetInternalField(jsInfoIdx, Undefined(m_isolate));
+    DetachGarbageCollectedWrapper(object);
 }
 
-ObjectManager::JSInstanceInfo::~JSInstanceInfo() {
-    ssize_t count = --s_liveCount;
-    assert(count >= 0);
+void ObjectManager::MakeJavaInstanceWeak(jint javaObjectID) {
+    JEnv env;
+    env.CallVoidMethod(m_javaRuntimeObject, MAKE_INSTANCE_WEAK_METHOD_ID, javaObjectID);
+}
+
+bool ObjectManager::IsJavaInstanceAlive(jint javaObjectID) {
+    JEnv env;
+    jboolean isHeld = env.CallBooleanMethod(m_javaRuntimeObject, IS_INSTANCE_ALIVE_METHOD_ID, javaObjectID);
+    return isHeld == JNI_TRUE;
 }
 
 static inline const char* GCTypeString(GCType type) {
@@ -377,5 +311,3 @@ void ObjectManager::LogGCStats() {
                       m_gcCounts[3], averages[3].count(),
                       m_gcCounts[4], averages[4].count());
 }
-
-std::atomic<ssize_t> ObjectManager::JSInstanceInfo::s_liveCount{0};
