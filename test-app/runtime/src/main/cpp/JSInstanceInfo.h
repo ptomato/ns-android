@@ -23,7 +23,7 @@ public:
 
     jint JavaObjectID() const { return m_javaObjectID; }
 
-    void Trace(cppgc::Visitor* visitor) const;
+    void Trace(cppgc::Visitor*) const {}
 
 private:
     jint m_javaObjectID;

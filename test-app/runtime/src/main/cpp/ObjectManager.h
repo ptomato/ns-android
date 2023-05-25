@@ -41,11 +41,15 @@ class ObjectManager {
 
         v8::Local<v8::Object> CreateJSWrapper(jint javaObjectID, const std::string& typeName, jobject instance);
 
-        void Link(const v8::Local<v8::Object>& object, jint javaObjectID);
+        v8::Local<v8::Object> CreateCPPGCProxy(v8::Local<v8::Object> object, jint javaObjectID);
 
         void ReleaseNativeCounterpart(v8::Local<v8::Object>& object);
 
         bool CloneLink(const v8::Local<v8::Object>& src, const v8::Local<v8::Object>& dest);
+
+        void HoldJavaInstance(jint javaObjectID);
+        void ReleaseJavaInstance(jint javaObjectID);
+        bool IsJavaInstanceHeld(jint javaObjectID);
 
         jint GenerateNewObjectID();
 
@@ -95,12 +99,12 @@ class ObjectManager {
 
         jmethodID GET_OR_CREATE_JAVA_OBJECT_ID_METHOD_ID;
 
-        jmethodID IS_INSTANCE_ALIVE_METHOD_ID;
-        jmethodID MAKE_INSTANCE_WEAK_METHOD_ID;
-
-        jmethodID RELEASE_NATIVE_INSTANCE_METHOD_ID;
+        jmethodID IS_INSTANCE_HELD_METHOD_ID;
+        jmethodID HOLD_INSTANCE_METHOD_ID;
+        jmethodID RELEASE_INSTANCE_METHOD_ID;
 
         v8::Persistent<v8::ObjectTemplate> m_wrapperObjectTemplate;
+        v8::Persistent<v8::ObjectTemplate> m_proxyHandlerTemplate;
 
         std::chrono::steady_clock::time_point m_gcStartTime;
         size_t m_gcCounts[5] = {0, 0, 0, 0, 0};

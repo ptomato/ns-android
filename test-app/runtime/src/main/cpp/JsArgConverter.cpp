@@ -328,7 +328,7 @@ bool JsArgConverter::ConvertArg(const Local<Value> &arg, int index) {
                     buffer = env.NewGlobalRef(buffer);
 
                     jint id = objectManager->GetOrCreateObjectId(buffer);
-                    objectManager->Link(jsObject, id);
+                    objectManager->CreateCPPGCProxy(jsObject, id);
 
                     obj = objectManager->GetJavaObjectByJsObject(jsObject);
                 }

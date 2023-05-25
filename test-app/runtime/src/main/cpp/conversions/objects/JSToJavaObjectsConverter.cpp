@@ -211,7 +211,7 @@ bool tns::ConvertJavaScriptObject(
                 buffer = env.NewGlobalRef(buffer);
 
                 jint id = objectManager->GetOrCreateObjectId(buffer);
-                objectManager->Link(jsObject, id);
+                objectManager->CreateCPPGCProxy(jsObject, id);
 
                 obj = objectManager->GetJavaObjectByJsObject(jsObject);
             }

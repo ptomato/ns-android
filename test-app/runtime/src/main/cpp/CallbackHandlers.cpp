@@ -39,9 +39,9 @@ void CallbackHandlers::Init(Isolate *isolate) {
     CURRENT_OBJECTID_FIELD_ID = env.GetFieldID(RUNTIME_CLASS, "currentObjectId", "I");
     assert(CURRENT_OBJECTID_FIELD_ID != nullptr);
 
-    MAKE_INSTANCE_STRONG_ID = env.GetMethodID(RUNTIME_CLASS, "makeInstanceStrong",
-                                              "(Ljava/lang/Object;I)V");
-    assert(MAKE_INSTANCE_STRONG_ID != nullptr);
+    ASSOCIATE_INSTANCE_METHOD_ID = env.GetMethodID(RUNTIME_CLASS, "associateInstance",
+                                                   "(Ljava/lang/Object;I)V");
+    assert(ASSOCIATE_INSTANCE_METHOD_ID != nullptr);
 
     GET_TYPE_METADATA = env.GetStaticMethodID(RUNTIME_CLASS, "getTypeMetadata",
                                               "(Ljava/lang/String;I)[Ljava/lang/String;");
@@ -86,7 +86,7 @@ bool CallbackHandlers::RegisterInstance(Isolate *isolate, const Local<Object> &j
 
     jint javaObjectID = objectManager->GenerateNewObjectID();
 
-    objectManager->Link(jsObject, javaObjectID);
+    objectManager->CreateCPPGCProxy(jsObject, javaObjectID);
 
     // resolve constructor
     auto mi = MethodCache::ResolveConstructorSignature(argWrapper, fullClassName,
@@ -111,7 +111,7 @@ bool CallbackHandlers::RegisterInstance(Isolate *isolate, const Local<Object> &j
         }
     }
 
-    env.CallVoidMethod(runtime->GetJavaRuntime(), MAKE_INSTANCE_STRONG_ID, instance, javaObjectID);
+    env.CallVoidMethod(runtime->GetJavaRuntime(), ASSOCIATE_INSTANCE_METHOD_ID, instance, javaObjectID);
 
     AdjustAmountOfExternalAllocatedMemory(env, isolate);
 
@@ -1743,7 +1743,7 @@ jclass CallbackHandlers::RUNTIME_CLASS = nullptr;
 jclass CallbackHandlers::JAVA_LANG_STRING = nullptr;
 jfieldID CallbackHandlers::CURRENT_OBJECTID_FIELD_ID = nullptr;
 jmethodID CallbackHandlers::RESOLVE_CLASS_METHOD_ID = nullptr;
-jmethodID CallbackHandlers::MAKE_INSTANCE_STRONG_ID = nullptr;
+jmethodID CallbackHandlers::ASSOCIATE_INSTANCE_METHOD_ID = nullptr;
 jmethodID CallbackHandlers::GET_TYPE_METADATA = nullptr;
 jmethodID CallbackHandlers::ENABLE_VERBOSE_LOGGING_METHOD_ID = nullptr;
 jmethodID CallbackHandlers::DISABLE_VERBOSE_LOGGING_METHOD_ID = nullptr;

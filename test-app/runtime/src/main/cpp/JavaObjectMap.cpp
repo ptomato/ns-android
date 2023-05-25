@@ -9,6 +9,9 @@
 #include <v8-traced-handle.h>
 
 #include "JavaObjectMap.h"
+#include "JEnv.h"
+#include "NativeScriptAssert.h"
+#include "ObjectManager.h"
 
 namespace cppgc {
 class Visitor;
@@ -35,9 +38,16 @@ void JavaObjectMap::Drop(jint javaObjectID) {
 }
 
 void JavaObjectMap::Trace(cppgc::Visitor* visitor) const {
+    JEnv env;
     auto* jsVisitor = reinterpret_cast<JSVisitor*>(visitor);
+
     for (auto& entry : m_idToObject) {
-        jsVisitor->Trace(entry.second);
+        jint javaObjectID = entry.first;
+        if (m_objManager->IsJavaInstanceHeld(javaObjectID)) {
+            jsVisitor->Trace(entry.second);
+        } else {
+            DEBUG_WRITE_FORCE(",,, Java object %d is dead, not tracing JS object", javaObjectID);
+        }
     }
 }
 

@@ -793,7 +793,7 @@ public class Runtime {
             int objectId = runtime.currentObjectId;
 
             if (objectId != -1) {
-                runtime.makeInstanceStrong(instance, objectId);
+                runtime.associateInstance(instance, objectId);
             } else {
                 runtime.createJSInstance(instance);
             }
@@ -805,7 +805,7 @@ public class Runtime {
     private void createJSInstance(Object instance) {
         int javaObjectID = generateNewObjectId(getRuntimeId());
 
-        makeInstanceStrong(instance, javaObjectID);
+        associateInstance(instance, javaObjectID);
 
         Class<?> clazz = instance.getClass();
 
@@ -943,7 +943,7 @@ public class Runtime {
     }
 
     @RuntimeCallable
-    private void makeInstanceStrong(Object instance, int objectId) {
+    private void associateInstance(Object instance, int objectId) {
         if (instance == null) {
             throw new IllegalArgumentException("instance cannot be null");
         }
@@ -956,12 +956,12 @@ public class Runtime {
         classStorageService.storeClass(clazz.getName(), clazz);
 
         if (logger != null && logger.isEnabled()) {
-            logger.write("MakeInstanceStrong (" + key + ", " + instance.getClass().toString() + ")");
+            logger.write("associateInstance(" + key + ", " + instance.getClass().toString() + ")");
         }
     }
 
     @RuntimeCallable
-    private boolean isInstanceAlive(int javaObjectID) {
+    private boolean isInstanceHeld(int javaObjectID) {
         Object instance = strongInstances.get(javaObjectID);
         if (instance != null)
             return true;
@@ -981,9 +981,34 @@ public class Runtime {
     }
 
     @RuntimeCallable
-    private void makeInstanceWeak(int javaObjectID) {
+    private void holdInstance(int javaObjectID) {
         if (logger.isEnabled()) {
-            logger.write("makeInstanceWeak instance " + javaObjectID);
+            logger.write("holdInstance instance" + javaObjectID);
+        }
+        if (strongInstances.containsKey(javaObjectID)) {
+            return;
+        }
+
+        WeakReference<Object> weakref = weakInstances.get(javaObjectID);
+        if (weakref == null) {
+            throw new NativeScriptException("No weak reference found for id=" + javaObjectID);
+        }
+        Object instance = weakref.get();
+        if (instance == null) {
+            throw new NativeScriptException("Attempt to use cleared object reference id=" + javaObjectID);
+        }
+
+        weakInstances.remove(javaObjectID);
+        weakJavaObjectToID.remove(weakref);
+
+        strongInstances.put(javaObjectID, instance);
+        strongJavaObjectToID.put(instance, javaObjectID);
+    }
+
+    @RuntimeCallable
+    private void releaseInstance(int javaObjectID) {
+        if (logger.isEnabled()) {
+            logger.write("releaseInstance instance " + javaObjectID);
         }
         Object instance = strongInstances.get(javaObjectID);
         if (instance == null) {
@@ -1050,7 +1075,7 @@ public class Runtime {
 
         if (result == null) {
             int objectId = generateNewObjectId(getRuntimeId());
-            makeInstanceStrong(obj, objectId);
+            associateInstance(obj, objectId);
 
             result = objectId;
         }

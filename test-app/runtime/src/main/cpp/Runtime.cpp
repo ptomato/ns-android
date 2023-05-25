@@ -360,7 +360,7 @@ void Runtime::CreateJSInstanceNative(jobject obj, jobject javaObject, jint javaO
     }
     DEBUG_WRITE("createJSInstanceNative: implementationObject :%d", implementationObject->GetIdentityHash());
 
-    m_objectManager->Link(jsInstance, javaObjectID);
+    m_objectManager->CreateCPPGCProxy(jsInstance, javaObjectID);
 }
 
 jint Runtime::GenerateNewObjectId(JNIEnv* env, jobject obj) {

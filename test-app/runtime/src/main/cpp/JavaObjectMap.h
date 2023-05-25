@@ -18,11 +18,13 @@ class Isolate;
 }
 
 namespace tns {
+class ObjectManager;
 
 /// JavaObjectMap is a CPPGC-traceable object which ensures that certain objects are kept alive
 class JavaObjectMap final: public cppgc::GarbageCollected<JavaObjectMap> {
 public:
-    JavaObjectMap() = default;
+    explicit JavaObjectMap(ObjectManager* om) : m_objManager(om), m_idToObject() {}
+    JavaObjectMap() = delete;
     ~JavaObjectMap() = default;
 
     JavaObjectMap(JavaObjectMap&) = delete;
@@ -36,6 +38,7 @@ public:
     void Trace(cppgc::Visitor* visitor) const;
 
 private:
+    ObjectManager* m_objManager;
     std::unordered_map<jint, v8::TracedReference<v8::Object>> m_idToObject;
 };
 

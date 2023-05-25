@@ -101,6 +101,7 @@ add_library(
         src/main/cpp/File.cpp
         src/main/cpp/IsolateDisposer.cpp
         src/main/cpp/JavaObjectMap.cpp
+        src/main/cpp/JavaStrongRef.cpp
         src/main/cpp/JEnv.cpp
         src/main/cpp/DesugaredInterfaceCompanionClassNameResolver.cpp
         src/main/cpp/JType.cpp

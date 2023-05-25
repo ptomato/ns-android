@@ -17,6 +17,9 @@
 #include "JSInstanceInfo.h"
 #include "ManualInstrumentation.h"
 
+#include "GCUtil.h"
+#include "JavaStrongRef.h"
+
 using namespace v8;
 using namespace std;
 using namespace tns;
@@ -25,7 +28,7 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
         m_isolate(isolate),
         m_javaRuntimeObject(javaRuntimeObject),
         m_currentObjectId(0),
-        m_idToObject(MakeGarbageCollected<JavaObjectMap>(isolate)),
+        m_idToObject(MakeGarbageCollected<JavaObjectMap>(isolate, this)),
         m_cache(NewWeakGlobalRefCallback, DeleteWeakGlobalRefCallback, 1000, this) {
 
     JEnv env;
@@ -41,14 +44,12 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
                                                                "(Ljava/lang/Object;)I");
     assert(GET_OR_CREATE_JAVA_OBJECT_ID_METHOD_ID != nullptr);
 
-    IS_INSTANCE_ALIVE_METHOD_ID = env.GetMethodID(runtimeClass, "isInstanceAlive", "(I)Z");
-    MAKE_INSTANCE_WEAK_METHOD_ID = env.GetMethodID(runtimeClass,"makeInstanceWeak", "(I)V");
-    assert(IS_INSTANCE_ALIVE_METHOD_ID != nullptr);
-    assert(MAKE_INSTANCE_WEAK_METHOD_ID != nullptr);
-
-    RELEASE_NATIVE_INSTANCE_METHOD_ID = env.GetMethodID(runtimeClass, "releaseNativeCounterpart",
-                                                          "(I)V");
-    assert(RELEASE_NATIVE_INSTANCE_METHOD_ID != nullptr);
+    IS_INSTANCE_HELD_METHOD_ID = env.GetMethodID(runtimeClass, "isInstanceHeld", "(I)Z");
+    HOLD_INSTANCE_METHOD_ID = env.GetMethodID(runtimeClass, "holdInstance", "(I)V");
+    RELEASE_INSTANCE_METHOD_ID = env.GetMethodID(runtimeClass, "releaseInstance", "(I)V");
+    assert(IS_INSTANCE_HELD_METHOD_ID != nullptr);
+    assert(HOLD_INSTANCE_METHOD_ID != nullptr);
+    assert(RELEASE_INSTANCE_METHOD_ID != nullptr);
 
     jclass javaLangClass = env.FindClass("java/lang/Class");
     assert(javaLangClass != nullptr);
@@ -56,6 +57,10 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
     Local<ObjectTemplate> tmpl = ObjectTemplate::New(m_isolate);
     tmpl->SetInternalFieldCount(static_cast<int>(MetadataNodeKeys::END));
     m_wrapperObjectTemplate.Reset(m_isolate, tmpl);
+
+    tmpl = ObjectTemplate::New(m_isolate);
+    tmpl->SetInternalFieldCount(kMinGarbageCollectedEmbedderFields);
+    m_proxyHandlerTemplate.Reset(m_isolate, tmpl);
 
     m_isolate->AddGCPrologueCallback(&ObjectManager::OnGCStart, this, kGCTypeAll);
     m_isolate->AddGCEpilogueCallback(&ObjectManager::OnGCFinish, this, kGCTypeAll);
@@ -156,17 +161,17 @@ ObjectManager::CreateJSWrapperHelper(jint javaObjectID, const string &typeName, 
 
     auto jsWrapper = node->CreateJSWrapper(isolate, this);
 
-    if (!jsWrapper.IsEmpty()) {
-        Link(jsWrapper, javaObjectID);
+    if (jsWrapper.IsEmpty()) {
+        return {};
     }
-    return jsWrapper;
+
+    return CreateCPPGCProxy(jsWrapper, javaObjectID);
 }
 
-
-/* *
- * Link the JavaScript object and it's java counterpart with an ID
+/**
+ * Link the JavaScript object and its java counterpart with an ID
  */
-void ObjectManager::Link(const Local<Object> &object, jint javaObjectID) {
+Local<Object> ObjectManager::CreateCPPGCProxy(Local<Object> object, jint javaObjectID) {
     if (!IsJsRuntimeObject(object)) {
         string errMsg("Trying to link invalid 'this' to a Java object");
         throw NativeScriptException(errMsg);
@@ -180,7 +185,25 @@ void ObjectManager::Link(const Local<Object> &object, jint javaObjectID) {
     auto* jsInstanceInfo = MakeGarbageCollected<JSInstanceInfo>(isolate, javaObjectID, this);
     AttachGarbageCollectedWrapper(object, jsInstanceInfo);
 
+    Local<Context> context = isolate->GetCurrentContext();
+
+    TryCatch tc{isolate};
+    Local<Object> handler;  // empty handler forwards all operations
+    if (!m_wrapperObjectTemplate.Get(isolate)->NewInstance(context).ToLocal(&handler)) {
+        throw NativeScriptException{tc};
+    }
+
+    auto* strongRef = MakeGarbageCollected<JavaStrongRef>(isolate, javaObjectID, this);
+    AttachGarbageCollectedWrapper(handler, strongRef);
+
+    Local<Proxy> proxy;
+    if (!Proxy::New(context, object, handler).ToLocal(&proxy)) {
+        throw NativeScriptException{tc};
+    }
+
     m_idToObject->Add(isolate, javaObjectID, object);
+
+    return proxy.As<Object>();
 }
 
 bool ObjectManager::CloneLink(const Local<Object> &src, const Local<Object> &dest) {
@@ -235,21 +258,23 @@ void ObjectManager::ReleaseNativeCounterpart(v8::Local<v8::Object> &object) {
         throw NativeScriptException("Trying to release a non native object!");
     }
 
-    JEnv env;
-    env.CallVoidMethod(m_javaRuntimeObject, RELEASE_NATIVE_INSTANCE_METHOD_ID,
-                         jsInstanceInfo->JavaObjectID());
-
-    DetachGarbageCollectedWrapper(object);
+    ReleaseJavaInstance(jsInstanceInfo->JavaObjectID());
 }
 
-void ObjectManager::MakeJavaInstanceWeak(jint javaObjectID) {
+void ObjectManager::HoldJavaInstance(jint javaObjectID) {
     JEnv env;
-    env.CallVoidMethod(m_javaRuntimeObject, MAKE_INSTANCE_WEAK_METHOD_ID, javaObjectID);
+    env.CallVoidMethod(m_javaRuntimeObject, HOLD_INSTANCE_METHOD_ID, javaObjectID);
 }
 
-bool ObjectManager::IsJavaInstanceAlive(jint javaObjectID) {
+void ObjectManager::ReleaseJavaInstance(jint javaObjectID) {
     JEnv env;
-    jboolean isHeld = env.CallBooleanMethod(m_javaRuntimeObject, IS_INSTANCE_ALIVE_METHOD_ID, javaObjectID);
+    env.CallVoidMethod(m_javaRuntimeObject, RELEASE_INSTANCE_METHOD_ID, javaObjectID);
+    m_idToObject->Drop(javaObjectID);
+}
+
+bool ObjectManager::IsJavaInstanceHeld(jint javaObjectID) {
+    JEnv env;
+    jboolean isHeld = env.CallBooleanMethod(m_javaRuntimeObject, IS_INSTANCE_HELD_METHOD_ID, javaObjectID);
     return isHeld == JNI_TRUE;
 }
 
