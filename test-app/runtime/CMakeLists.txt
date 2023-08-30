@@ -189,3 +189,14 @@ find_library(system-android android)
 # Command info: https://cmake.org/cmake/help/v3.4/command/target_link_libraries.html
 # Specifies libraries CMake should link to your target library.
 target_link_libraries(NativeScript ${system-log} ${system-z} ${system-android})
+
+# Runtime C++ tests
+
+set(GOOGLETEST_ROOT ${ANDROID_NDK}/sources/third_party/googletest)
+add_library(gtest STATIC ${GOOGLETEST_ROOT}/src/gtest_main.cc ${GOOGLETEST_ROOT}/src/gtest-all.cc)
+target_include_directories(gtest PRIVATE ${GOOGLETEST_ROOT})
+target_include_directories(gtest PUBLIC ${GOOGLETEST_ROOT}/include)
+
+add_executable(TestNativeScriptException src/main/cpp/test/TestNativeScriptException.cpp)
+target_include_directories(TestNativeScriptException PRIVATE src/main/cpp)
+target_link_libraries(TestNativeScriptException NativeScript gtest)

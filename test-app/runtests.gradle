@@ -129,6 +129,12 @@ task runtests {
     dependsOn deleteRootLevelResult
 }
 
+task installCppTests {
+    dependsOn runAdbAsRoot
+    commandLine "cd", "$buildDir"
+    commandLine "pwd"
+}
+
 // waitForEmulatorToStart.dependsOn(deleteDist)
 runAdbAsRoot.dependsOn(waitForEmulatorToStart)
 deletePreviousResultXml.dependsOn(runAdbAsRoot)
