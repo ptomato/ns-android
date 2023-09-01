@@ -20,10 +20,7 @@ JSInstanceInfo::~JSInstanceInfo() {
 }
 
 void JSInstanceInfo::Trace(cppgc::Visitor *visitor [[maybe_unused]]) const {
-    if (!m_objManager->IsJavaInstanceAlive(m_javaObjectID)) {
-        // If the Java instance is dead, this JavaScript instance can be let die.
-        m_objManager->DropJSObjectByJavaObject(m_javaObjectID);
-    }
+    if (m_traces > 0) m_traces--;
 }
 
 std::atomic<ssize_t> JSInstanceInfo::s_liveCount{0};

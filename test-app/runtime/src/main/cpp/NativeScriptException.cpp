@@ -40,6 +40,16 @@ NativeScriptException::NativeScriptException(TryCatch& tc, const string& message
     tc.Reset();
 }
 
+void NativeScriptException::Log() {
+    const char* type = "MESSAGE";
+    if (m_javascriptException)
+        type = "JAVASCRIPT";
+    else if (!m_javaException.IsNull())
+        type = "JAVA";
+    std::string message = m_message + m_fullMessage + m_stackTrace;
+    DEBUG_WRITE_FORCE("NativeScript exception of type %s: %s", type, message.c_str());
+}
+
 void NativeScriptException::ReThrowToV8() {
     auto isolate = Isolate::GetCurrent();
     auto context = isolate->GetCurrentContext();

@@ -22,6 +22,8 @@ namespace tns {
 /// JavaObjectMap is a CPPGC-traceable object which ensures that certain objects are kept alive
 class JavaObjectMap final: public cppgc::GarbageCollected<JavaObjectMap> {
 public:
+    using MapImpl = std::unordered_map<jint, v8::TracedReference<v8::Object>>;
+
     JavaObjectMap() = default;
     ~JavaObjectMap() = default;
 
@@ -35,8 +37,12 @@ public:
     void Drop(jint javaObjectID);
     void Trace(cppgc::Visitor* visitor) const;
 
+    // Iteration protocol
+    MapImpl::iterator begin() { return m_idToObject.begin(); }
+    MapImpl::iterator end() { return m_idToObject.end(); }
+
 private:
-    std::unordered_map<jint, v8::TracedReference<v8::Object>> m_idToObject;
+    MapImpl m_idToObject;
 };
 
 } // namespace tns

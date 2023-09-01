@@ -275,13 +275,50 @@ static inline size_t GCTypeIndex(GCType type) {
     }
 }
 
-void ObjectManager::OnGCStart(Isolate*, GCType, GCCallbackFlags, void *data) {
+void ObjectManager::OnGCStart(Isolate* isolate, GCType type, GCCallbackFlags, void *data) {
     auto* self = static_cast<ObjectManager*>(data);
     self->m_gcStartTime = std::chrono::steady_clock::now();
+
+    if (type != kGCTypeMarkSweepCompact) return;
+    for (const auto &[id, ref]: *self->m_idToObject) {
+        auto* jsInfo = ExtractWrapper<JSInstanceInfo>(ref.Get(isolate));
+        if (!jsInfo) continue;  // when can this happen?
+        jsInfo->StartCountingTraces();
+    }
 }
 
-void ObjectManager::OnGCFinish(Isolate*, GCType type, GCCallbackFlags, void *data) {
+void ObjectManager::OnGCFinish(Isolate* isolate, GCType type, GCCallbackFlags, void *data) {
     auto* self = static_cast<ObjectManager*>(data);
+
+    if (type == kGCTypeMarkSweepCompact) {
+        // Any Java object IDs in m_gcUnmarkedIDs with count < 2 are objects whose JS wrappers were
+        // only traced once. This means that only m_idToObject was holding on to them, and they were not
+        // reachable from JS.
+        std::vector<jint> idsToClear;
+
+        for (const auto &[id, jsObject]: *self->m_idToObject) {
+            auto* jsInfo = ExtractWrapper<JSInstanceInfo>(jsObject.Get(isolate));
+            if (!jsInfo) continue;  // when can this happen?
+            if (!jsInfo->HasBeenTracedTwice()) {
+                try {
+                    self->MakeJavaInstanceWeak(id);
+                    if (!self->IsJavaInstanceAlive(id)) {
+                        // If the Java instance is dead, this JavaScript instance can be let die.
+                        idsToClear.push_back(id);
+                    }
+                } catch (NativeScriptException& ex) {
+                    // If the Java method throws an exception, there's not much we can do about it;
+                    // there's nowhere else to throw it to. Log it and continue iterating.
+                    ex.Log();
+                }
+            }
+        }
+
+        for (jint id : idsToClear) {
+            self->m_idToObject->Drop(id);
+        }
+    }
+
     std::chrono::steady_clock::time_point gcEndTime = std::chrono::steady_clock::now();
     std::chrono::steady_clock::duration gcDuration = gcEndTime - self->m_gcStartTime;
     DEBUG_WRITE_FORCE("%s GC finished in %lld µs: %zu JS objects live", GCTypeString(type),

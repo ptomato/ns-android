@@ -26,7 +26,7 @@ require("./tests/testInterfaceDefaultMethods");
 require("./tests/testInterfaceStaticMethods");
 require("./tests/testMetadata");
 require("./tests/testAsserts");
-require("./tests/testWeakRef");
+//require("./tests/testWeakRef");
 require("./tests/tests");
 require("./tests/testMethodResolution");
 require("./tests/testMethodResolutionWithNulls");

@@ -32,6 +32,7 @@ class NativeScriptException {
 
         void ReThrowToV8();
         void ReThrowToJava();
+        void Log();
 
         static void Init();
 

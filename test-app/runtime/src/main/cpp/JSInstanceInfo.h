@@ -25,9 +25,13 @@ public:
 
     void Trace(cppgc::Visitor* visitor) const;
 
+    void StartCountingTraces() { m_traces = 2; }
+    bool HasBeenTracedTwice() { return m_traces == 0; }
+
 private:
     jint m_javaObjectID;
     ObjectManager *m_objManager;
+    mutable unsigned m_traces;
 };
 
 } // namespace tns
