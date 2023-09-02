@@ -62,7 +62,7 @@ else ()
 endif ()
 
 if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
-    # Debug builds will include the V8 inspector sources
+    # Debug builds will include the V8 inspector sources and debugger dump functions
     add_definitions(-DAPPLICATION_IN_DEBUG)
 
     set(
@@ -70,6 +70,7 @@ if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
 
         src/main/cpp/com_tns_AndroidJsV8Inspector.cpp
         src/main/cpp/DOMDomainCallbackHandlers.cpp
+        src/main/cpp/DumpFunctions.cpp
         src/main/cpp/JsV8InspectorClient.cpp
         src/main/cpp/NetworkDomainCallbackHandlers.cpp
     )
