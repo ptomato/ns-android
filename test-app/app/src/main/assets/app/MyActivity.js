@@ -56,6 +56,8 @@ var MyActivity = (function (_super) {
         		onClick: function () {
         			button.setBackgroundColor(colors[taps % colors.length]);
         			taps++;
+        			__collect();
+        			__gcStats();
         		},
         	})
         );

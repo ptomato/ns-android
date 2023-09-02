@@ -1682,6 +1682,13 @@ void CallbackHandlers::RemoveFrameCallback(const FunctionCallbackInfo<v8::Value>
 
 }
 
+void CallbackHandlers::GCStatsCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+    Runtime* runtime = Runtime::GetRuntime(isolate);
+    ObjectManager* objectManager = runtime->GetObjectManager();
+    objectManager->LogGCStats();
+}
+
 void CallbackHandlers::InitChoreographer() {
     if(AChoreographer_getInstance_ == nullptr){
         void* lib = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);

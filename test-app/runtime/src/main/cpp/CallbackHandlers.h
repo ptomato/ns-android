@@ -201,6 +201,8 @@ namespace tns {
 
         static void RemoveFrameCallback(const v8::FunctionCallbackInfo<v8::Value> &args);
 
+        static void GCStatsCallback(const v8::FunctionCallbackInfo<v8::Value>& args);
+
         struct AChoreographer;
 
 

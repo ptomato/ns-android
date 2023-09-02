@@ -509,6 +509,7 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__runOnMainThread"), FunctionTemplate::New(isolate, CallbackHandlers::RunOnMainThreadCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__postFrameCallback"), FunctionTemplate::New(isolate, CallbackHandlers::PostFrameCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__removeFrameCallback"), FunctionTemplate::New(isolate, CallbackHandlers::RemoveFrameCallback));
+    globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__gcStats"), FunctionTemplate::New(isolate, CallbackHandlers::GCStatsCallback));
     /*
      * Attach `Worker` object constructor only to the main thread (isolate)'s global object
      * Workers should not be created from within other Workers, for now

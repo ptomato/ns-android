@@ -1,3 +1,6 @@
+#include <cassert>
+#include <chrono>
+
 #include "ObjectManager.h"
 #include "NativeScriptAssert.h"
 #include "MetadataNode.h"
@@ -50,6 +53,9 @@ ObjectManager::ObjectManager(v8::Isolate* isolate, jobject javaRuntimeObject) :
     Local<ObjectTemplate> tmpl = ObjectTemplate::New(m_isolate);
     tmpl->SetInternalFieldCount(static_cast<int>(MetadataNodeKeys::END));
     m_wrapperObjectTemplate.Reset(m_isolate, tmpl);
+
+    m_isolate->AddGCPrologueCallback(&ObjectManager::OnGCStart, this, kGCTypeAll);
+    m_isolate->AddGCEpilogueCallback(&ObjectManager::OnGCFinish, this, kGCTypeAll);
 }
 
 
@@ -307,3 +313,69 @@ void ObjectManager::ReleaseNativeCounterpart(v8::Local<v8::Object> &object) {
     auto jsInfoIdx = static_cast<int>(MetadataNodeKeys::JsInfo);
     object->SetInternalField(jsInfoIdx, Undefined(m_isolate));
 }
+
+ObjectManager::JSInstanceInfo::~JSInstanceInfo() {
+    ssize_t count = --s_liveCount;
+    assert(count >= 0);
+}
+
+static inline const char* GCTypeString(GCType type) {
+    switch (type) {
+        case kGCTypeScavenge: return "Nursery";
+        case kGCTypeMinorMarkCompact: return "Minor";
+        case kGCTypeMarkSweepCompact: return "Major";
+        case kGCTypeIncrementalMarking: return "Incremental";
+        case kGCTypeProcessWeakCallbacks: return "Process weak callbacks";
+        case kGCTypeAll: assert(false && "kGCTypeAll should not be passed to GC callback");
+    }
+}
+
+static inline size_t GCTypeIndex(GCType type) {
+    switch (type) {
+        case kGCTypeScavenge: return 0;
+        case kGCTypeMinorMarkCompact: return 1;
+        case kGCTypeMarkSweepCompact: return 2;
+        case kGCTypeIncrementalMarking: return 3;
+        case kGCTypeProcessWeakCallbacks: return 4;
+        case kGCTypeAll: assert(false && "kGCTypeAll should not be passed to GC callback");
+    }
+}
+
+void ObjectManager::OnGCStart(Isolate*, GCType, GCCallbackFlags, void *data) {
+    auto* self = static_cast<ObjectManager*>(data);
+    self->m_gcStartTime = std::chrono::steady_clock::now();
+}
+
+void ObjectManager::OnGCFinish(Isolate*, GCType type, GCCallbackFlags, void *data) {
+    auto* self = static_cast<ObjectManager*>(data);
+    std::chrono::steady_clock::time_point gcEndTime = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::duration gcDuration = gcEndTime - self->m_gcStartTime;
+    DEBUG_WRITE_FORCE("%s GC finished in %lld µs: %zu JS objects live", GCTypeString(type),
+                      std::chrono::duration_cast<std::chrono::microseconds>(gcDuration).count(),
+                      JSInstanceInfo::s_liveCount.load());
+    size_t ix = GCTypeIndex(type);
+    self->m_gcCounts[ix]++;
+    self->m_gcDurations[ix] += gcDuration;
+}
+
+void ObjectManager::LogGCStats() {
+    std::chrono::microseconds averages[5] = {0us, 0us, 0us, 0us, 0us};
+    for (size_t ix = 0; ix < 5; ix++) {
+        if (m_gcCounts[ix])
+            averages[ix] = std::chrono::duration_cast<std::chrono::microseconds>(
+                    m_gcDurations[ix] / m_gcCounts[ix]);
+    }
+    DEBUG_WRITE_FORCE("GC statistics:\n"
+                      "- %zu nursery, average %lld µs\n"
+                      "- %zu minor, average %lld µs\n"
+                      "- %zu major, average %lld µs\n"
+                      "- %zu incremental, average %lld µs\n"
+                      "- %zu process weak callbacks, average %lld µs",
+                      m_gcCounts[0], averages[0].count(),
+                      m_gcCounts[1], averages[1].count(),
+                      m_gcCounts[2], averages[2].count(),
+                      m_gcCounts[3], averages[3].count(),
+                      m_gcCounts[4], averages[4].count());
+}
+
+std::atomic<ssize_t> ObjectManager::JSInstanceInfo::s_liveCount{0};

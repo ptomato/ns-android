@@ -1,6 +1,8 @@
 #ifndef OBJECTMANAGER_H_
 #define OBJECTMANAGER_H_
 
+#include <chrono>
+
 #include "v8.h"
 #include "JEnv.h"
 #include "JniLocalRef.h"
@@ -43,13 +45,19 @@ class ObjectManager {
             END
         };
 
+        void LogGCStats();
+
     private:
 
         struct JSInstanceInfo {
             public:
+                static std::atomic<ssize_t> s_liveCount;
+
                 JSInstanceInfo(jint javaObjectID)
                     : JavaObjectID(javaObjectID) {
+                    ++s_liveCount;
                 }
+                ~JSInstanceInfo();
 
                 jint JavaObjectID;
         };
@@ -82,6 +90,9 @@ class ObjectManager {
 
         static bool IsJsRuntimeObject(const v8::Local<v8::Object>& object);
 
+        static void OnGCStart(v8::Isolate* isolate, v8::GCType type, v8::GCCallbackFlags flags, void* data);
+        static void OnGCFinish(v8::Isolate* isolate, v8::GCType type, v8::GCCallbackFlags flags, void* data);
+
         jobject m_javaRuntimeObject;
 
         v8::Isolate* m_isolate;
@@ -101,6 +112,10 @@ class ObjectManager {
         jmethodID RELEASE_NATIVE_INSTANCE_METHOD_ID;
 
         v8::Persistent<v8::ObjectTemplate> m_wrapperObjectTemplate;
+
+        std::chrono::steady_clock::time_point m_gcStartTime;
+        size_t m_gcCounts[5] = {0, 0, 0, 0, 0};
+        std::chrono::steady_clock::duration m_gcDurations[5] = {{}, {}, {}, {}, {}};
 };
 }
 
